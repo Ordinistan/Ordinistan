@@ -1,0 +1,273 @@
+type Block @entity {
+    id: ID!
+    number: Int! @index
+    timestamp: DateTime! @index
+}
+
+type Transaction @entity {
+    id: ID!
+    blockNumber: Int @index
+    blockTimestamp: DateTime! @index
+    hash: String! @index
+    to: String @index
+    from: String @index
+    status: Int @index
+}
+
+type LightRelayEventAuthorizationRequirementChanged @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    newStatus: Boolean!
+}
+
+type LightRelayEventGenesis @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    blockHeight: BigInt!
+}
+
+type LightRelayEventOwnershipTransferred @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    previousOwner: String! @index
+    newOwner: String! @index
+}
+
+type LightRelayEventProofLengthChanged @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    newLength: BigInt!
+}
+
+type LightRelayEventRetarget @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    oldDifficulty: BigInt!
+    newDifficulty: BigInt!
+}
+
+type LightRelayEventSubmitterAuthorized @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    submitter: String!
+}
+
+type LightRelayEventSubmitterDeauthorized @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    submitter: String!
+}
+
+type MarketplaceEventAddNftSupport @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    nftAddress: String! @index
+}
+
+type MarketplaceEventAddTokenSupport @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    tokenAddress: String! @index
+}
+
+type MarketplaceEventAdminChanged @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    previousAdmin: String!
+    newAdmin: String!
+}
+
+type MarketplaceEventBeaconUpgraded @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    beacon: String! @index
+}
+
+type MarketplaceEventBidAccepted @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    orderId: BigInt! @index
+    bidId: BigInt!
+    copies: BigInt!
+}
+
+type MarketplaceEventBidPlaced @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    orderId: BigInt! @index
+    bidIndex: BigInt!
+    bidder: String!
+    copies: BigInt!
+    pricePerNft: BigInt!
+    startTime: BigInt!
+    endTime: BigInt!
+}
+
+type MarketplaceEventBidRejected @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    orderId: BigInt! @index
+    bidId: BigInt!
+}
+
+type MarketplaceEventBidWithdraw @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    orderId: BigInt! @index
+    bidId: BigInt!
+}
+
+type MarketplaceEventContractUpgraded @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    oldImplementation: String! @index
+    newImplementation: String! @index
+}
+
+type MarketplaceEventFeeClaimed @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    tokenAddress: String! @index
+    to: String!
+    amount: BigInt!
+}
+
+type MarketplaceEventInitialized @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    version: BigInt!
+}
+
+type MarketplaceEventOrderCancelled @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    orderId: BigInt! @index
+}
+
+type MarketplaceEventOrderCreated @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    orderId: BigInt! @index
+    tokenId: BigInt! @index
+    pricePerNft: BigInt!
+    seller: String!
+    copies: BigInt!
+    startTime: BigInt!
+    endTime: BigInt!
+    paymentToken: String!
+    nftContract: String!
+}
+
+type MarketplaceEventOrderPurchased @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    orderId: BigInt! @index
+    buyer: String!
+    copies: BigInt!
+}
+
+type MarketplaceEventOwnershipTransferred @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    previousOwner: String! @index
+    newOwner: String! @index
+}
+
+type MarketplaceEventUpgraded @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    implementation: String! @index
+}
+

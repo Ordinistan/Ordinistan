@@ -1,0 +1,15 @@
+# archive: core-mainnet
+rpcUrl: ${RPC_ENDPOINT} # This will use the value from your .env file
+target:
+  type: postgres
+contracts:
+  - name: lightRelay
+    address: "0x0000000000000000000000000000000000000000"  # Placeholder - update after deployment
+    abi: ./abi/lightRelay.json
+    events: true  # Index all events
+    functions: false  # Set to true if you want to index function calls
+  - name: marketplace
+    address: "0x0000000000000000000000000000000000000000"  # Placeholder - update after deployment
+    abi: ./abi/marketplace.json
+    events: true
+    functions: false 
