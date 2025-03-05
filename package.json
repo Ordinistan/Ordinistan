@@ -7,6 +7,8 @@
     "hardhat-deploy": "^0.14.0"
   },
   "dependencies": {
+    "@keep-network/bitcoin-spv-sol": "^3.4.0-solc-0.8",
+    "@keep-network/random-beacon": "^2.0.0",
     "@openzeppelin/contracts": "^5.2.0",
     "@openzeppelin/contracts-upgradeable": "^4.8.0"
   }
