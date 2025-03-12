@@ -7,33 +7,36 @@ module.exports = {
     extend: {
       colors: {
         core: {
-          primary: '#1E40AF',    // Core Chain blue
-          secondary: '#6366F1',  // Indigo accent
-          dark: '#0F172A',       // Dark background
-          light: '#F1F5F9',      // Light background
-          accent: '#7C3AED',     // Purple accent
-          surface: '#FFFFFF',    // Surface color
-          muted: '#94A3B8',     // Muted text
-          'glass-light': 'rgba(255, 255, 255, 0.1)',
-          'glass-dark': 'rgba(15, 23, 42, 0.8)',
-          'bg-light': '#F8FAFC',  // Softer background
+          primary: '#F7931A',    // Bitcoin orange
+          secondary: '#9945FF',  // Purple accent
+          dark: '#0A0A0F',      // Deep background
+          darker: '#050507',     // Darker elements
+          light: '#FFFFFF',     
+          accent: '#F7931A',    
+          surface: '#12121A',   // Card background
+          muted: '#9BA1A6',     // Muted text
+          'glass-light': 'rgba(255, 255, 255, 0.03)',
+          'glass-dark': 'rgba(10, 10, 15, 0.95)',
+          'card': '#15151F',    
         },
         gradient: {
-          start: '#1E40AF',
-          middle: '#3B82F6',
-          end: '#6366F1',
+          start: '#F7931A',
+          middle: '#FF8E2D',
+          end: '#9945FF',
         }
       },
       backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'gradient-radial': 'radial-gradient(circle at center, var(--tw-gradient-stops))',
         'hero-pattern': "url('/grid-pattern.svg')",
-        'card-gradient': 'linear-gradient(45deg, rgba(30, 64, 175, 0.05), rgba(99, 102, 241, 0.05))',
-        'page-gradient': 'linear-gradient(to bottom, rgb(241, 245, 249), rgb(248, 250, 252))',
+        'card-gradient': 'linear-gradient(135deg, rgba(247, 147, 26, 0.1), rgba(153, 69, 255, 0.1))',
+        'page-gradient': 'linear-gradient(to bottom, rgb(10, 10, 15), rgb(5, 5, 7))',
+        'glow-gradient': 'radial-gradient(circle at center, rgba(247, 147, 26, 0.15), transparent 50%)',
       },
       animation: {
         'float': 'float 6s ease-in-out infinite',
         'glow': 'glow 2s ease-in-out infinite',
         'fade-in': 'fadeIn 0.5s ease-out forwards',
+        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
       keyframes: {
         float: {
@@ -56,8 +59,10 @@ module.exports = {
         },
       },
       boxShadow: {
-        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
-        'neon': '0 0 20px rgba(99, 102, 241, 0.3)',
+        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
+        'neon': '0 0 20px rgba(255, 51, 102, 0.3)',
+        'neon-purple': '0 0 20px rgba(153, 51, 255, 0.3)',
+        'inner-glow': 'inset 0 0 20px rgba(255, 51, 102, 0.2)',
       },
     },
   },

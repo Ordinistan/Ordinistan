@@ -17,10 +17,17 @@ const StatsSection = () => {
 
   return (
     <section className="px-4 mb-12">
-      <div className="max-w-6xl mx-auto bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 p-6 sm:p-8">
+      <div className="max-w-6xl mx-auto glass-card rounded-2xl p-6 sm:p-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
           {stats.map((stat, index) => (
-            <StatsCard key={index} {...stat} />
+            <div key={index} className="text-center group">
+              <p className="text-3xl font-bold text-core-primary mb-1">
+                {stat.value}
+              </p>
+              <p className="text-core-muted font-medium">
+                {stat.label}
+              </p>
+            </div>
           ))}
         </div>
       </div>

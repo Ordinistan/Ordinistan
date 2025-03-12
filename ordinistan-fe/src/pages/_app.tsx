@@ -16,7 +16,7 @@ function MyApp({ Component, pageProps }: AppProps) {
     <WagmiProvider config={config}>
       <QueryClientProvider client={client}>
         <RainbowKitProvider>
-          <div className="min-h-screen flex flex-col bg-page-gradient">
+          <div className="min-h-screen flex flex-col bg-core-dark">
             <Navbar />
             <main className="flex-grow w-full">
               <Component {...pageProps} />

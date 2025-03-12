@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import React from 'react';
 import { useState } from 'react';
+import Image from 'next/image';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,13 +16,20 @@ const Navbar = () => {
   ];
 
   return (
-    <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 fixed w-full z-50">
+    <nav className="bg-core-darker/95 backdrop-blur-xl border-b border-white/5 fixed w-full z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           {/* Logo and Brand */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center">
-              <span className="text-xl font-bold text-gray-800">Ordinistan</span>
+            <Link href="/" className="flex items-center gap-2">
+              <Image 
+                src="/logo.png" 
+                alt="Ordinistan" 
+                width={32} 
+                height={32}
+                className="w-8 h-8"
+              />
+              <span className="text-xl font-bold text-white">Ordinistan</span>
             </Link>
           </div>
 
@@ -32,10 +40,10 @@ const Navbar = () => {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                     router.pathname === item.href
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-core-primary/10 text-core-primary'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   {item.name}
@@ -43,7 +51,10 @@ const Navbar = () => {
               ))}
             </div>
             <div className="flex items-center">
-              <ConnectButton />
+              <ConnectButton 
+                chainStatus="icon" 
+                showBalance={false}
+              />
             </div>
           </div>
 

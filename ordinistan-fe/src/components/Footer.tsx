@@ -31,7 +31,7 @@ const Footer = () => {
   };
 
   return (
-    <footer className="bg-white border-t border-gray-200">
+    <footer className="bg-core-surface border-t border-white/5">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
           <nav className="flex space-x-4" aria-label="Footer">
@@ -39,7 +39,7 @@ const Footer = () => {
               <Link
                 key={item.name}
                 href={item.href}
-                className="text-sm text-gray-500 hover:text-gray-900"
+                className="text-sm text-gray-400 hover:text-white"
               >
                 {item.name}
               </Link>
@@ -51,7 +51,7 @@ const Footer = () => {
               <a
                 key={item.name}
                 href={item.href}
-                className="text-gray-400 hover:text-gray-500"
+                className="text-gray-400 hover:text-white"
                 target="_blank"
                 rel="noopener noreferrer"
               >
