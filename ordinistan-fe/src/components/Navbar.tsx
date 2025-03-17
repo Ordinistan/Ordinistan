@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import React from 'react';
 import { useState } from 'react';
 import Image from 'next/image';
+import BitcoinConnectButton from './common/BitcoinConnectButton';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,6 +14,7 @@ const Navbar = () => {
     { name: 'Home', href: '/' },
     { name: 'Portfolio', href: '/portfolio' },
     { name: 'Bridge', href: '/bridge' },
+    { name: 'Inscribe', href: '/inscribe' },
   ];
 
   return (
@@ -50,11 +52,12 @@ const Navbar = () => {
                 </Link>
               ))}
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center space-x-2">
               <ConnectButton 
                 chainStatus="icon" 
                 showBalance={false}
               />
+              <BitcoinConnectButton />
             </div>
           </div>
 
@@ -62,7 +65,7 @@ const Navbar = () => {
           <div className="flex items-center sm:hidden">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-core-primary"
             >
               <span className="sr-only">Open main menu</span>
               {!isOpen ? (
@@ -105,7 +108,7 @@ const Navbar = () => {
       <div
         className={`${
           isOpen ? 'block' : 'hidden'
-        } sm:hidden bg-white border-b border-gray-200`}
+        } sm:hidden bg-core-darker border-t border-white/5`}
       >
         <div className="pt-2 pb-3 space-y-1">
           {navigation.map((item) => (
@@ -114,16 +117,17 @@ const Navbar = () => {
               href={item.href}
               className={`block px-3 py-2 text-base font-medium ${
                 router.pathname === item.href
-                  ? 'bg-gray-100 text-gray-900'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-core-primary/10 text-core-primary'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
               onClick={() => setIsOpen(false)}
             >
               {item.name}
             </Link>
           ))}
-          <div className="px-3 py-2">
+          <div className="px-3 py-2 space-y-2">
             <ConnectButton />
+            <BitcoinConnectButton />
           </div>
         </div>
       </div>
