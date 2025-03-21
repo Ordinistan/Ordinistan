@@ -36,12 +36,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.BridgeListener = void 0;
+exports.checkBridgeService = checkBridgeService;
+exports.startServer = startServer;
 const axios_1 = __importDefault(require("axios"));
 const cron = __importStar(require("node-cron"));
 const ethers_1 = require("ethers");
 const dotenv = __importStar(require("dotenv"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
 dotenv.config();
 // Chain ID to name mapping
 const CHAIN_NAMES = {
@@ -68,19 +73,6 @@ function validateEnvironment() {
     }
 }
 class BridgeListener {
-    /**
-     * Convert inscription ID to token ID
-     * This ensures unique token IDs based on the inscription
-     */
-    getTokenIdFromInscription(inscriptionId) {
-        // Remove the 'i' suffix if present
-        const cleanId = inscriptionId.endsWith('i0') ? inscriptionId.slice(0, -2) : inscriptionId;
-        // Convert hex to decimal
-        const bigInt = BigInt('0x' + cleanId);
-        // Use last 16 digits to ensure it fits in uint256
-        const tokenId = bigInt % BigInt('10000000000000000');
-        return tokenId.toString();
-    }
     constructor(storagePath) {
         this.bridgeRequests = [];
         this.BRIDGE_BTC_ADDRESS = 'bc1pmgv3st9cr2lk8mthty73lct3dkntec2p60s587keeaafm8la6u6qv9nrnk';
@@ -135,9 +127,6 @@ class BridgeListener {
             throw error;
         }
     }
-    /**
-     * Create a new BridgeListener instance
-     */
     static async create(storagePath) {
         const instance = new BridgeListener(storagePath);
         try {
@@ -161,17 +150,11 @@ class BridgeListener {
             throw error;
         }
     }
-    /**
-     * Initialize chain information
-     */
     async initializeChainInfo() {
         const network = await this.provider.getNetwork();
         const chainId = Number(network.chainId);
         this.CHAIN_NAME = CHAIN_NAMES[chainId] || `chain-${chainId}`;
     }
-    /**
-     * Get chain-specific storage path
-     */
     getChainSpecificStoragePath(customPath) {
         const baseDir = customPath || path.join(__dirname, '../data');
         const chainDir = path.join(baseDir, this.CHAIN_NAME);
@@ -181,9 +164,6 @@ class BridgeListener {
         }
         return path.join(chainDir, 'bridge-requests.json');
     }
-    /**
-     * Start the monitoring cron job
-     */
     startMonitoring() {
         if (this.cronJob) {
             this.cronJob.stop();
@@ -195,18 +175,12 @@ class BridgeListener {
         });
         console.log(`Bridge Listener started. Monitoring transfers to ${this.BRIDGE_BTC_ADDRESS}`);
     }
-    /**
-     * Stop the monitoring cron job
-     */
     stopMonitoring() {
         if (this.cronJob) {
             this.cronJob.stop();
             console.log('Bridge Listener stopped');
         }
     }
-    /**
-     * Load bridge requests from storage
-     */
     loadRequests() {
         try {
             if (fs.existsSync(this.STORAGE_PATH)) {
@@ -236,9 +210,6 @@ class BridgeListener {
             this.saveRequests();
         }
     }
-    /**
-     * Save bridge requests to storage
-     */
     saveRequests() {
         try {
             fs.writeFileSync(this.STORAGE_PATH, JSON.stringify(this.bridgeRequests, null, 2));
@@ -248,9 +219,15 @@ class BridgeListener {
             console.error(`Error saving bridge requests for ${this.CHAIN_NAME}:`, error);
         }
     }
-    /**
-     * Create a new bridge request when a user wants to transfer their ordinal
-     */
+    getTokenIdFromInscription(inscriptionId) {
+        // Remove the 'i' suffix if present
+        const cleanId = inscriptionId.endsWith('i0') ? inscriptionId.slice(0, -2) : inscriptionId;
+        // Convert hex to decimal
+        const bigInt = BigInt('0x' + cleanId);
+        // Use last 16 digits to ensure it fits in uint256
+        const tokenId = bigInt % BigInt('10000000000000000');
+        return tokenId.toString();
+    }
     async createBridgeRequest(inscriptionId, userEvmAddress) {
         // Check if inscription has already been bridged
         const isProcessed = await this.bridgeContract.processedInscriptions(inscriptionId);
@@ -282,9 +259,6 @@ class BridgeListener {
         console.log(`New bridge request created for inscription ${inscriptionId}`);
         console.log(`Please transfer the ordinal to ${this.BRIDGE_BTC_ADDRESS}`);
     }
-    /**
-     * Check all pending bridge requests
-     */
     async checkPendingRequests() {
         if (this.isProcessing)
             return;
@@ -315,9 +289,6 @@ class BridgeListener {
             this.isProcessing = false;
         }
     }
-    /**
-     * Process a single bridge request
-     */
     async processRequest(request) {
         try {
             const inscription = await this.getInscriptionDetails(request.inscriptionId);
@@ -341,9 +312,6 @@ class BridgeListener {
             throw error; // Re-throw to increment retry count
         }
     }
-    /**
-     * Fetch inscription details from Hiro API
-     */
     async getInscriptionDetails(inscriptionId) {
         try {
             const response = await axios_1.default.get(`${this.HIRO_API_BASE}/inscriptions/${inscriptionId}`);
@@ -359,9 +327,6 @@ class BridgeListener {
             throw error;
         }
     }
-    /**
-     * Mint an EVM NFT for a bridge request
-     */
     async mintEvmNft(request) {
         try {
             const tokenId = this.getTokenIdFromInscription(request.inscriptionId);
@@ -395,9 +360,6 @@ class BridgeListener {
             throw error; // Re-throw to increment retry count
         }
     }
-    /**
-     * Get all bridge requests with optional filters
-     */
     getBridgeRequests(status) {
         if (status) {
             return this.bridgeRequests.filter(r => r.status === status);
@@ -407,9 +369,6 @@ class BridgeListener {
     getAllBridgeRequests() {
         return this.bridgeRequests;
     }
-    /**
-     * Retry a failed bridge request
-     */
     async retryFailedRequest(inscriptionId) {
         const request = this.bridgeRequests.find(r => r.inscriptionId === inscriptionId);
         if (!request) {
@@ -426,5 +385,101 @@ class BridgeListener {
         await this.checkPendingRequests();
     }
 }
-// Export the class
-exports.default = BridgeListener;
+exports.BridgeListener = BridgeListener;
+// Utility function to check bridge service
+async function checkBridgeService() {
+    const provider = new ethers_1.ethers.JsonRpcProvider(process.env.RPC_URL);
+    const contract = new ethers_1.ethers.Contract(process.env.BRIDGE_CONTRACT_ADDRESS, ['function bridgeService() external view returns (address)'], provider);
+    const bridgeService = await contract.bridgeService();
+    console.log('Current bridge service address:', bridgeService);
+}
+// Express API setup
+let bridgeListener = null;
+async function initializeBridgeListener() {
+    try {
+        bridgeListener = await BridgeListener.create();
+        console.log('Bridge Listener initialized successfully');
+    }
+    catch (error) {
+        console.error('Failed to initialize bridge listener:', error);
+        process.exit(1);
+    }
+}
+const app = (0, express_1.default)();
+const port = process.env.PORT || 3001;
+// Middleware
+app.use(express_1.default.json());
+app.use((0, cors_1.default)({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000'
+}));
+// API Routes
+app.post('/api/bridge-request', async (req, res) => {
+    try {
+        if (!bridgeListener) {
+            return res.status(503).json({ error: 'Bridge listener not initialized' });
+        }
+        const { inscriptionId, userEvmAddress } = req.body;
+        if (!inscriptionId || !userEvmAddress) {
+            return res.status(400).json({ error: 'Missing required parameters' });
+        }
+        await bridgeListener.createBridgeRequest(inscriptionId, userEvmAddress);
+        res.status(200).json({
+            message: 'Bridge request created successfully',
+            bridgeAddress: bridgeListener['BRIDGE_BTC_ADDRESS']
+        });
+    }
+    catch (error) {
+        console.error('Error creating bridge request:', error);
+        res.status(500).json({
+            error: 'Failed to create bridge request',
+            details: error.message
+        });
+    }
+});
+app.get('/api/bridge-request/:inscriptionId', async (req, res) => {
+    try {
+        if (!bridgeListener) {
+            return res.status(503).json({ error: 'Bridge listener not initialized' });
+        }
+        const { inscriptionId } = req.params;
+        const requests = bridgeListener.getBridgeRequests();
+        const request = requests.find(r => r.inscriptionId === inscriptionId);
+        if (!request) {
+            return res.status(404).json({ error: 'Bridge request not found' });
+        }
+        res.status(200).json(request);
+    }
+    catch (error) {
+        console.error('Error fetching bridge request:', error);
+        res.status(500).json({
+            error: 'Failed to fetch bridge request',
+            details: error.message
+        });
+    }
+});
+// Start server
+async function startServer() {
+    await initializeBridgeListener();
+    app.listen(port, () => {
+        console.log(`Bridge Listener API running on port ${port}`);
+    });
+    // Handle graceful shutdown
+    process.on('SIGINT', async () => {
+        console.log('Received SIGINT. Cleaning up...');
+        if (bridgeListener) {
+            bridgeListener.stopMonitoring();
+        }
+        process.exit(0);
+    });
+    process.on('SIGTERM', async () => {
+        console.log('Received SIGTERM. Cleaning up...');
+        if (bridgeListener) {
+            bridgeListener.stopMonitoring();
+        }
+        process.exit(0);
+    });
+}
+// Start the server if this is the main module
+if (require.main === module) {
+    startServer().catch(console.error);
+}
