@@ -1,37 +1,17 @@
 import Image from 'next/image';
-import { FiArrowRight, FiHeart } from 'react-icons/fi';
-import { useState } from 'react';
+import { FiArrowRight } from 'react-icons/fi';
 import { useRouter } from 'next/router';
-
-export interface NFT {
-  id: number;
-  name: string;
-  image: string;
-  price: string;
-  creator: string;
-  likes?: number;
-}
+import type { NFT } from '../../hooks/useWalletNFTs';
 
 interface NFTCardProps {
   nft: NFT;
-  showLikes?: boolean;
 }
 
-const NFTCard = ({ nft, showLikes = false }: NFTCardProps) => {
+const NFTCard = ({ nft }: NFTCardProps) => {
   const router = useRouter();
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(nft.likes || 0);
-
-  const handleLike = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsLiked(!isLiked);
-    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
-    // Here you would typically make an API call to update likes in your backend
-  };
 
   const handleViewDetails = () => {
-    router.push(`/nft/${nft.id}`);
+    router.push(`/nft/${nft.tokenId}`);
   };
 
   return (
@@ -50,17 +30,6 @@ const NFTCard = ({ nft, showLikes = false }: NFTCardProps) => {
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          
-          {showLikes && (
-            <button 
-              onClick={handleLike}
-              className="absolute top-4 right-4 bg-black/20 backdrop-blur-md p-2 rounded-full
-                       text-white/80 hover:text-red-500 transition-colors duration-300 flex items-center gap-2"
-            >
-              <FiHeart className={`w-5 h-5 ${isLiked ? 'text-red-500 fill-current' : ''}`} />
-              <span className="text-sm">{likeCount}</span>
-            </button>
-          )}
         </div>
 
         <div className="p-5 bg-gradient-to-b from-transparent to-black/5">
@@ -69,7 +38,10 @@ const NFTCard = ({ nft, showLikes = false }: NFTCardProps) => {
               <h3 className="font-semibold text-lg text-core-dark group-hover:text-core-primary transition-colors">
                 {nft.name}
               </h3>
-              <p className="text-sm text-core-muted">{nft.creator}</p>
+              <p className="text-sm text-core-muted">Token ID: {nft.tokenId}</p>
+              <p className="text-sm text-core-muted truncate" title={nft.metadata.inscriptionId}>
+                Inscription: {nft.metadata.inscriptionId}
+              </p>
             </div>
             <span className="px-3 py-1 bg-core-primary/10 rounded-full text-core-primary text-sm font-medium">
               {nft.price}
@@ -83,7 +55,7 @@ const NFTCard = ({ nft, showLikes = false }: NFTCardProps) => {
                      hover:shadow-lg hover:shadow-core-primary/25 group-hover:scale-[1.02]
                      flex items-center justify-center gap-2"
           >
-            View Details
+            {nft.isListed ? 'Update Listing' : 'List for Sale'}
             <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
           </button>
         </div>

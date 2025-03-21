@@ -1,8 +1,8 @@
 import {Entity as Entity_, Column as Column_, PrimaryColumn as PrimaryColumn_, IntColumn as IntColumn_, Index as Index_, DateTimeColumn as DateTimeColumn_, StringColumn as StringColumn_} from "@subsquid/typeorm-store"
 
 @Entity_()
-export class LightRelayEventSubmitterDeauthorized {
-    constructor(props?: Partial<LightRelayEventSubmitterDeauthorized>) {
+export class BridgeEventOwnershipTransferred {
+    constructor(props?: Partial<BridgeEventOwnershipTransferred>) {
         Object.assign(this, props)
     }
 
@@ -29,6 +29,11 @@ export class LightRelayEventSubmitterDeauthorized {
     @StringColumn_({nullable: false})
     eventName!: string
 
+    @Index_()
     @StringColumn_({nullable: false})
-    submitter!: string
+    previousOwner!: string
+
+    @Index_()
+    @StringColumn_({nullable: false})
+    newOwner!: string
 }

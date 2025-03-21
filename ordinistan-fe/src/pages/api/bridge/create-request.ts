@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 
-const BRIDGE_LISTENER_URL = process.env.NEXT_PUBLIC_BRIDGE_LISTENER_URL || 'http://localhost:3001';
+const BRIDGE_LISTENER_URL = process.env.NEXT_PUBLIC_BRIDGE_LISTENER_URL;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {

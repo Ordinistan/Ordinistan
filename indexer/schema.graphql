@@ -14,27 +14,45 @@ type Transaction @entity {
     status: Int @index
 }
 
-type LightRelayEventAuthorizationRequirementChanged @entity {
+type BridgeEventApproval @entity {
     id: ID!
     blockNumber: Int! @index
     blockTimestamp: DateTime! @index
     transactionHash: String! @index
     contract: String! @index
     eventName: String! @index
-    newStatus: Boolean!
+    owner: String! @index
+    approved: String! @index
+    tokenId: BigInt! @index
 }
 
-type LightRelayEventGenesis @entity {
+type BridgeEventApprovalForAll @entity {
     id: ID!
     blockNumber: Int! @index
     blockTimestamp: DateTime! @index
     transactionHash: String! @index
     contract: String! @index
     eventName: String! @index
-    blockHeight: BigInt!
+    owner: String! @index
+    operator: String! @index
+    approved: Boolean!
 }
 
-type LightRelayEventOwnershipTransferred @entity {
+type BridgeEventOrdinalBridged @entity {
+    id: ID!
+    blockNumber: Int! @index
+    blockTimestamp: DateTime! @index
+    transactionHash: String! @index
+    contract: String! @index
+    eventName: String! @index
+    inscriptionId: String! @index
+    tokenId: BigInt! @index
+    receiver: String! @index
+    contentType: String!
+    satOrdinal: BigInt!
+}
+
+type BridgeEventOwnershipTransferred @entity {
     id: ID!
     blockNumber: Int! @index
     blockTimestamp: DateTime! @index
@@ -45,45 +63,16 @@ type LightRelayEventOwnershipTransferred @entity {
     newOwner: String! @index
 }
 
-type LightRelayEventProofLengthChanged @entity {
+type BridgeEventTransfer @entity {
     id: ID!
     blockNumber: Int! @index
     blockTimestamp: DateTime! @index
     transactionHash: String! @index
     contract: String! @index
     eventName: String! @index
-    newLength: BigInt!
-}
-
-type LightRelayEventRetarget @entity {
-    id: ID!
-    blockNumber: Int! @index
-    blockTimestamp: DateTime! @index
-    transactionHash: String! @index
-    contract: String! @index
-    eventName: String! @index
-    oldDifficulty: BigInt!
-    newDifficulty: BigInt!
-}
-
-type LightRelayEventSubmitterAuthorized @entity {
-    id: ID!
-    blockNumber: Int! @index
-    blockTimestamp: DateTime! @index
-    transactionHash: String! @index
-    contract: String! @index
-    eventName: String! @index
-    submitter: String!
-}
-
-type LightRelayEventSubmitterDeauthorized @entity {
-    id: ID!
-    blockNumber: Int! @index
-    blockTimestamp: DateTime! @index
-    transactionHash: String! @index
-    contract: String! @index
-    eventName: String! @index
-    submitter: String!
+    from: String! @index
+    to: String! @index
+    tokenId: BigInt! @index
 }
 
 type MarketplaceEventAddNftSupport @entity {

@@ -5,7 +5,7 @@ import * as eventHandlers from '../handlers/marketplace_events'
 import * as functionHandlers from '../handlers/marketplace_functions'
 import {Log, Transaction} from '../processor'
 
-const address = '0x0000000000000000000000000000000000000000'
+const address = '0x5eafc51b0d71c2d3de27b3b1b151f5178fe80111'
 
 
 export function parseEvent(ctx: DataHandlerContext<Store>, log: Log) {

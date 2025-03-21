@@ -1,8 +1,8 @@
 import {Entity as Entity_, Column as Column_, PrimaryColumn as PrimaryColumn_, IntColumn as IntColumn_, Index as Index_, DateTimeColumn as DateTimeColumn_, StringColumn as StringColumn_, BooleanColumn as BooleanColumn_} from "@subsquid/typeorm-store"
 
 @Entity_()
-export class LightRelayEventAuthorizationRequirementChanged {
-    constructor(props?: Partial<LightRelayEventAuthorizationRequirementChanged>) {
+export class BridgeEventApprovalForAll {
+    constructor(props?: Partial<BridgeEventApprovalForAll>) {
         Object.assign(this, props)
     }
 
@@ -29,6 +29,14 @@ export class LightRelayEventAuthorizationRequirementChanged {
     @StringColumn_({nullable: false})
     eventName!: string
 
+    @Index_()
+    @StringColumn_({nullable: false})
+    owner!: string
+
+    @Index_()
+    @StringColumn_({nullable: false})
+    operator!: string
+
     @BooleanColumn_({nullable: false})
-    newStatus!: boolean
+    approved!: boolean
 }

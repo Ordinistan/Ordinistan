@@ -1,15 +1,25 @@
-# archive: core-mainnet
-rpcUrl: ${RPC_ENDPOINT} # This will use the value from your .env file
+archive: moonbeam
 target:
   type: postgres
 contracts:
-  - name: lightRelay
-    address: "0x0000000000000000000000000000000000000000"  # Placeholder - update after deployment
-    abi: ./abi/lightRelay.json
-    events: true  # Index all events
-    functions: false  # Set to true if you want to index function calls
+  # - name: lightRelay
+  #   address: "0x0000000000000000000000000000000000000000"  # Placeholder - update after deployment
+  #   abi: ./abi/lightRelay.json
+  #   events: true  # Index all events
+  #   functions: false  # Set to true if you want to index function calls
+  #   range:
+  #     from: 7948340  # Deployment block number
+  - name: bridge
+    address: "0x13748584Ea70ddd16273aF9a4797836d9eb7e7AA"
+    abi: ./abi/bridge.json
+    events: true
+    functions: false
+    range:
+      from: 7948340  # Deployment block number
   - name: marketplace
-    address: "0x0000000000000000000000000000000000000000"  # Placeholder - update after deployment
+    address: "0x5EAFc51b0d71C2d3DE27b3b1b151f5178Fe80111"
     abi: ./abi/marketplace.json
     events: true
-    functions: false 
+    functions: false
+    range:
+      from: 7948340  # Deployment block number 

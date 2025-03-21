@@ -1,8 +1,8 @@
-import {Entity as Entity_, Column as Column_, PrimaryColumn as PrimaryColumn_, IntColumn as IntColumn_, Index as Index_, DateTimeColumn as DateTimeColumn_, StringColumn as StringColumn_} from "@subsquid/typeorm-store"
+import {Entity as Entity_, Column as Column_, PrimaryColumn as PrimaryColumn_, IntColumn as IntColumn_, Index as Index_, DateTimeColumn as DateTimeColumn_, StringColumn as StringColumn_, BigIntColumn as BigIntColumn_} from "@subsquid/typeorm-store"
 
 @Entity_()
-export class LightRelayEventOwnershipTransferred {
-    constructor(props?: Partial<LightRelayEventOwnershipTransferred>) {
+export class BridgeEventApproval {
+    constructor(props?: Partial<BridgeEventApproval>) {
         Object.assign(this, props)
     }
 
@@ -31,9 +31,13 @@ export class LightRelayEventOwnershipTransferred {
 
     @Index_()
     @StringColumn_({nullable: false})
-    previousOwner!: string
+    owner!: string
 
     @Index_()
     @StringColumn_({nullable: false})
-    newOwner!: string
+    approved!: string
+
+    @Index_()
+    @BigIntColumn_({nullable: false})
+    tokenId!: bigint
 }

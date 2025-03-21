@@ -1,4 +1,4 @@
-import {lightRelay, marketplace} from './mapping'
+import {bridge, marketplace} from './mapping'
 import {processor} from './processor'
 import {db, Store} from './db'
 import {EntityBuffer} from './entityBuffer'
@@ -15,19 +15,19 @@ processor.run(db, async (ctx) => {
         )
 
         for (let log of block.logs) {
-            if (log.address === '0x0000000000000000000000000000000000000000') {
-                lightRelay.parseEvent(ctx, log)
+            if (log.address === '0x13748584ea70ddd16273af9a4797836d9eb7e7aa') {
+                bridge.parseEvent(ctx, log)
             }
-            if (log.address === '0x0000000000000000000000000000000000000000') {
+            if (log.address === '0x5eafc51b0d71c2d3de27b3b1b151f5178fe80111') {
                 marketplace.parseEvent(ctx, log)
             }
         }
 
         for (let transaction of block.transactions) {
-            if (transaction.to === '0x0000000000000000000000000000000000000000') {
-                lightRelay.parseFunction(ctx, transaction)
+            if (transaction.to === '0x13748584ea70ddd16273af9a4797836d9eb7e7aa') {
+                bridge.parseFunction(ctx, transaction)
             }
-            if (transaction.to === '0x0000000000000000000000000000000000000000') {
+            if (transaction.to === '0x5eafc51b0d71c2d3de27b3b1b151f5178fe80111') {
                 marketplace.parseFunction(ctx, transaction)
             }
 

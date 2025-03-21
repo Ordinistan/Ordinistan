@@ -1,5 +1,5 @@
 {
-  "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+  "address": "0x5EAFc51b0d71C2d3DE27b3b1b151f5178Fe80111",
   "abi": [
     {
       "type": "constructor",
@@ -923,8 +923,8 @@
       "stateMutability": "payable"
     }
   ],
-  "network": "hardhat",
-  "timestamp": 1742552617415,
-  "deployerAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "network": "sepolia",
+  "timestamp": 1742552666394,
+  "deployerAddress": "0x855527806C68b1334c3AB628Cb91092B16cb84f5",
   "platformFee": 1
 }
