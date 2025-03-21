@@ -1,6 +1,7 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import {
   coreDao,
+  sepolia,
 } from 'wagmi/chains';
 
 export const config = getDefaultConfig({
@@ -8,6 +9,7 @@ export const config = getDefaultConfig({
   projectId: 'YOUR_PROJECT_ID',
   chains: [
     coreDao,
+    sepolia,
   ],
   ssr: true,
 });

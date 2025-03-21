@@ -2,6 +2,15 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
 import "hardhat-deploy";
+import * as dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
+
+// Ensure private key exists
+const PRIVATE_KEY = process.env.PRIVATE_KEY || "0000000000000000000000000000000000000000000000000000000000000000";
+const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://sepolia.gateway.tenderly.co";
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 
 interface ExtendedHardhatUserConfig extends HardhatUserConfig {
   namedAccounts?: {
@@ -21,6 +30,7 @@ const config: ExtendedHardhatUserConfig = {
             enabled: true,
             runs: 200,
           },
+          viaIR: true
         },
       },
       {
@@ -30,6 +40,7 @@ const config: ExtendedHardhatUserConfig = {
             enabled: true,
             runs: 200,
           },
+          viaIR: true
         },
       }
     ],
@@ -51,8 +62,21 @@ const config: ExtendedHardhatUserConfig = {
     },
     localhost: {
       chainId: 31337
+    },
+    sepolia: {
+      url: SEPOLIA_RPC_URL,
+      accounts: [PRIVATE_KEY],
+      chainId: 11155111,
+      // verify: {
+      //   etherscan: {
+      //     apiKey: ETHERSCAN_API_KEY
+      //   }
+      // }
     }
-  }
+  },
+  // etherscan: {
+  //   apiKey: ETHERSCAN_API_KEY
+  // }
 };
 
 export default config;

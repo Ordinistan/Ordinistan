@@ -92,12 +92,6 @@ const Bridge: NextPage = () => {
     ));
   }, [ordinals, getPreviewUrl, handleOrdinalSelect]);
 
-  // Submit proof to Light Client
-  const submitToLightClient = async (proof: TransactionProof) => {
-    // TODO: Implement Light Client contract call
-    // This will be implemented once we have the Light Client interface
-    throw new Error('Light Client submission not yet implemented');
-  };
 
   // Check for existing bridge state on mount
   useEffect(() => {
@@ -114,19 +108,16 @@ const Bridge: NextPage = () => {
       switch (state.status) {
         case 'pending_confirmation':
           setBridgeStatus('Waiting for Bitcoin confirmation...');
-          const proof = await BitcoinProofUtils.waitForConfirmationAndGetProof(state.txId);
-          BridgeStateManager.updateBridgeStatus('generating_proof');
-          await submitToLightClient(proof);
+          await BitcoinProofUtils.waitForConfirmationAndGetProof(state.txId);
+          BridgeStateManager.updateBridgeStatus('completed');
           break;
         case 'generating_proof':
           setBridgeStatus('Generating proof...');
-          const resumeProof = await BitcoinProofUtils.waitForConfirmationAndGetProof(state.txId);
-          await submitToLightClient(resumeProof);
+          await BitcoinProofUtils.waitForConfirmationAndGetProof(state.txId);
+          BridgeStateManager.updateBridgeStatus('completed');
           break;
-        // Add more cases as needed
       }
       
-      BridgeStateManager.updateBridgeStatus('completed');
       setBridgeStatus('Bridge process completed successfully!');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -170,12 +161,28 @@ const Bridge: NextPage = () => {
     setBridgeStatus('Initiating bridge process...');
     
     try {
-      // 1. Send ordinal to bridge address
+      // Clean up the inscription ID to ensure only one i0 suffix
+      const cleanInscriptionId = selectedOrdinal.slice(0, -2);
+      
+      // 1. Create bridge request first
+      setBridgeStatus('Creating bridge request...');
+      const bridgeResponse = await axios.post('/api/bridge/create-request', {
+        inscriptionId: cleanInscriptionId,
+        userEvmAddress: receiverAddress
+      });
+
+      if (!bridgeResponse.data || bridgeResponse.data.error) {
+        throw new Error(bridgeResponse.data?.error || 'Failed to create bridge request');
+      }
+
+      // 2. Send ordinal to bridge address
       setBridgeStatus('Sending ordinal to bridge address...');
       
+      console.log('cleanInscriptionId', cleanInscriptionId);
+      console.log('BRIDGE_ADDRESS', BRIDGE_ADDRESS);
       const sendResponse = await request('ord_sendInscriptions', {
         transfers: [{
-          inscriptionId: selectedOrdinal,
+          inscriptionId: cleanInscriptionId,
           address: BRIDGE_ADDRESS
         }]
       }) as RpcResult<'ord_sendInscriptions'>;
@@ -184,15 +191,17 @@ const Bridge: NextPage = () => {
         throw new Error('Failed to send ordinal');
       }
 
+      console.log('sendResponse', sendResponse);
+
       const txId = sendResponse.result.txid;
       if (!txId) {
         throw new Error('No transaction ID received');
       }
 
-      // Save initial bridge state with receiver address
+      // Save bridge state
       BridgeStateManager.saveBridgeState({
         txId,
-        inscriptionId: selectedOrdinal,
+        inscriptionId: cleanInscriptionId,
         fromAddress: ordinalsAddress,
         toAddress: BRIDGE_ADDRESS,
         receiverAddress,
@@ -204,31 +213,13 @@ const Bridge: NextPage = () => {
         }
       });
 
-      // 2. Send to server for processing
-      setBridgeStatus('Processing bridge transaction...');
-      const response = await axios.post('/api/bridge/initiate', {
-        txId,
-        inscriptionId: selectedOrdinal,
-        fromAddress: ordinalsAddress,
-        receiverAddress,
-        metadata: {
-          inscriptionNumber: selectedOrdinalData.inscriptionNumber,
-          contentType: selectedOrdinalData.contentType
-        }
-      });
-
-      if (response.data.status === 'completed') {
-        BridgeStateManager.updateBridgeStatus('completed');
-        setBridgeStatus('Bridge process completed successfully!');
-        // Clear the bridge state from localStorage after successful completion
-        BridgeStateManager.clearBridgeState();
-        // Reset form
-        setSelectedOrdinal('');
-        setPreviewUrl('');
-        setReceiverAddress('');
-      } else {
-        throw new Error(response.data.error || 'Bridge process failed');
-      }
+      setBridgeStatus('Bridge request created successfully! Waiting for confirmation...');
+      
+      // Reset form after successful initiation
+      setSelectedOrdinal('');
+      setPreviewUrl('');
+      setReceiverAddress('');
+      
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       BridgeStateManager.updateBridgeStatus('failed', errorMessage);

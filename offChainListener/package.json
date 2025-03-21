@@ -1,0 +1,38 @@
+{
+  "name": "offchainlistener",
+  "version": "1.0.0",
+  "description": "Bridge listener service for monitoring ordinal transfers",
+  "main": "dist/api.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/api.js",
+    "dev": "ts-node-dev --respawn src/api.ts",
+    "watch": "tsc -w"
+  },
+  "keywords": [
+    "bitcoin",
+    "ordinals",
+    "bridge",
+    "ethereum",
+    "nft"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^22.13.10",
+    "axios": "^1.8.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node-cron": "^3.0.11",
+    "ts-node-dev": "^2.0.0"
+  }
+}
