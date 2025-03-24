@@ -1,8 +1,9 @@
 import type { NextPage } from 'next';
 import Head from 'next/head';
-import NFTCard, { NFT } from '../components/shared/NFTCard';
+import NFTCard from '../components/shared/NFTCard';
 import { useState } from 'react';
 import { FiSearch, FiFilter } from 'react-icons/fi';
+import { NFT } from '../hooks/useWalletNFTs';
 
 const Explore: NextPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -10,11 +11,22 @@ const Explore: NextPage = () => {
   // This would eventually come from your API/backend
   const allNFTs: NFT[] = Array(12).fill(null).map((_, index) => ({
     id: index + 1,
+    tokenId: (index + 1234).toString(),
     name: `Ordinal #${(index + 1234).toString()}`,
     image: 'https://i0.wp.com/techtunestales.com/wp-content/uploads/2023/08/gojo-six-eyes.png?fit=1730%2C966&ssl=1',
     price: `${(0.5 + index * 0.1).toFixed(1)} CORE`,
-    creator: `0x${(index + 1234).toString(16)}...${(index + 5678).toString(16)}`,
-    likes: Math.floor(Math.random() * 100),
+    creator: "0x" + (index + 1234).toString(16) + "..." + (index + 5678).toString(16),
+    isListed: Math.random() > 0.5,
+    metadata: {
+      inscriptionId: `${(index + 9999).toString(16)}i0`,
+      inscriptionNumber: index + 1000,
+      contentType: 'image/png',
+      contentLength: 10000,
+      satOrdinal: '12345',
+      satRarity: 'common',
+      genesisTimestamp: Date.now() - 1000000,
+      bridgeTimestamp: Date.now() - 500000
+    }
   }));
 
   const filteredNFTs = allNFTs.filter(nft => 
@@ -60,7 +72,7 @@ const Explore: NextPage = () => {
               <div key={nft.id} 
                    className="animate-fade-in"
                    style={{ animationDelay: `${index * 100}ms` }}>
-                <NFTCard nft={nft} showLikes={true} />
+                <NFTCard nft={nft} showAll={true} />
               </div>
             ))}
           </div>

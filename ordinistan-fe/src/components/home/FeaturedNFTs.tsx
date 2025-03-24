@@ -1,36 +1,37 @@
-import NFTCard, { NFT } from '../shared/NFTCard';
+import NFTCard from '../shared/NFTCard';
 import { FiArrowRight } from 'react-icons/fi';
 import { useRouter } from 'next/router';
+import { useWalletNFTs } from '../../hooks/useWalletNFTs';
 
 const FeaturedNFTs = () => {
   const router = useRouter();
+  const { nfts, loading, error } = useWalletNFTs();
 
-  const featuredNFTs: NFT[] = [
-    {
-      id: 1,
-      name: 'Ordinal #1234',
-      image: 'https://i0.wp.com/techtunestales.com/wp-content/uploads/2023/08/gojo-six-eyes.png?fit=1730%2C966&ssl=1',
-      price: '0.5 CORE',
-      creator: '0x1234...5678',
-      likes: 23,
-    },
-    {
-      id: 2,
-      name: 'Ordinal #2345',
-      image: 'https://i0.wp.com/techtunestales.com/wp-content/uploads/2023/08/gojo-six-eyes.png?fit=1730%2C966&ssl=1',
-      price: '0.8 CORE',
-      creator: '0x2345...6789',
-      likes: 45,
-    },
-    {
-      id: 3,
-      name: 'Ordinal #3456',
-      image: 'https://i0.wp.com/techtunestales.com/wp-content/uploads/2023/08/gojo-six-eyes.png?fit=1730%2C966&ssl=1',
-      price: '1.2 CORE',
-      creator: '0x3456...7890',
-      likes: 67,
-    },
-  ];
+  // Show loading state
+  if (loading) {
+    return (
+      <section className="py-16 px-4 bg-gradient-to-b from-core-dark to-core-darker">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-center items-center min-h-[400px]">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-core-primary"></div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <section className="py-16 px-4 bg-gradient-to-b from-core-dark to-core-darker">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-center items-center min-h-[400px]">
+            <div className="text-red-500">{error}</div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-16 px-4 bg-gradient-to-b from-core-dark to-core-darker">
@@ -53,15 +54,21 @@ const FeaturedNFTs = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {featuredNFTs.map((nft, index) => (
-            <div key={nft.id} 
-                 className="animate-fade-in glass-card rounded-xl overflow-hidden"
-                 style={{ animationDelay: `${index * 150}ms` }}>
-              <NFTCard nft={nft} />
-            </div>
-          ))}
-        </div>
+        {nfts.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-core-muted">No NFTs found. Connect your wallet to view your collection.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {nfts.map((nft, index) => (
+              <div key={nft.id} 
+                   className="animate-fade-in glass-card rounded-xl overflow-hidden"
+                   style={{ animationDelay: `${index * 150}ms` }}>
+                <NFTCard nft={nft} showAll={true} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

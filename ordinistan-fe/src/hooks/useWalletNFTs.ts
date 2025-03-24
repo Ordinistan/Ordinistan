@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
-import { useAccount, useContractRead, useContractReads } from 'wagmi';
+import { useEffect, useState, useCallback } from 'react';
+import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
+import bridgeAbi from './bridge.json';
+import { useRouter } from 'next/router';
 
 export interface NFTMetadata {
   inscriptionId: string;
@@ -21,6 +23,8 @@ export interface NFT {
   price: string;
   creator: string;
   isListed: boolean;
+  orderId?: string; // Added for marketplace interaction
+  seller?: string; // Added to track seller
   metadata: NFTMetadata;
 }
 
@@ -37,123 +41,491 @@ function isNFT(nft: any): nft is NFT {
          nft.metadata !== null;
 }
 
-const BRIDGE_CONTRACT_ABI = [
-  'function balanceOf(address owner) external view returns (uint256)',
-  'function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256)',
-  'function ordinalMetadata(uint256 tokenId) external view returns (tuple(string inscriptionId, uint256 inscriptionNumber, string contentType, uint256 contentLength, uint256 satOrdinal, string satRarity, uint256 genesisTimestamp, uint256 bridgeTimestamp))',
-  'function getListingPrice(uint256 tokenId) external view returns (uint256)',
-  'function isListed(uint256 tokenId) external view returns (bool)',
-  'function ownerOf(uint256 tokenId) external view returns (address)',
-];
+// Use a complete ABI with exact structure to avoid decoding errors
+const BRIDGE_CONTRACT_ABI = bridgeAbi;
+
+// GraphQL query for bridged ordinals
+const BRIDGED_ORDINALS_QUERY = `
+  query GetBridgedOrdinals($address: String!) {
+    bridgeEventOrdinalBridgeds(where: {receiver_eq: $address}) {
+      id
+      transactionHash
+      tokenId
+      satOrdinal
+      receiver
+      inscriptionId
+      eventName
+      contract
+      contentType
+      blockTimestamp
+      blockNumber
+    }
+  }
+`;
+
+// GraphQL query for marketplace events
+const MARKETPLACE_LISTINGS_QUERY = `
+  query GetMarketplaceEvents {
+    marketplaceEventOrderCreateds(orderBy: blockTimestamp_DESC) {
+      id
+      transactionHash
+      tokenId
+      startTime
+      seller
+      paymentToken
+      pricePerNft
+      orderId
+      nftContract
+      eventName
+      endTime
+      copies
+      contract
+      blockTimestamp
+      blockNumber
+    }
+    marketplaceEventOrderPurchaseds(orderBy: blockTimestamp_DESC) {
+      id
+      transactionHash
+      orderId
+      eventName
+      copies
+      contract
+      buyer
+      blockTimestamp
+      blockNumber
+    }
+    marketplaceEventOrderCancelleds(orderBy: blockTimestamp_DESC) {
+      id
+      transactionHash
+      orderId
+      eventName
+      contract
+      blockTimestamp
+      blockNumber
+    }
+  }
+`;
+
+// GraphQL query for transfers to capture purchased NFTs
+const TRANSFERS_QUERY = `
+  query GetNFTTransfers($address: String!) {
+    bridgeEventTransfers(where: {to_eq: $address}, orderBy: blockTimestamp_DESC) {
+      id
+      transactionHash
+      tokenId
+      from
+      to
+      eventName
+      contract
+      blockTimestamp
+      blockNumber
+    }
+  }
+`;
 
 export function useWalletNFTs() {
   const { address, isConnected } = useAccount();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  useEffect(() => {
-    const fetchNFTs = async () => {
-      if (!address || !isConnected) {
-        setNfts([]);
-        setLoading(false);
-        return;
+  // Function to fetch NFTs, extracted to be reusable
+  const fetchNFTs = useCallback(async () => {
+    if (!address || !isConnected) {
+      setNfts([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log("Connected address:", address);
+      console.log(`Starting NFT fetch at ${new Date().toISOString()}`);
+
+      // Create contract instance
+      const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+      const contract = new ethers.Contract(
+        process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
+        BRIDGE_CONTRACT_ABI,
+        provider
+      );
+      
+      // Step 1: Fetch all marketplace events to track listings, purchases, and cancellations
+      console.log("Fetching marketplace events from Subsquid...");
+      const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+      
+      // Fetch marketplace events
+      const marketplaceResponse = await fetch(subsquidEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: MARKETPLACE_LISTINGS_QUERY
+        }),
+      });
+
+      if (!marketplaceResponse.ok) {
+        throw new Error(`Subsquid API error for marketplace: ${marketplaceResponse.statusText}`);
       }
 
-      try {
-        setLoading(true);
-        setError(null);
+      const marketplaceResult = await marketplaceResponse.json();
+      console.log("Marketplace events:", marketplaceResult);
 
-        // Create contract instance
-        const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-        const contract = new ethers.Contract(
-          process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
-          BRIDGE_CONTRACT_ABI,
-          provider
-        );
+      // Process marketplace events to track which NFTs are listed, purchased, or cancelled
+      const createdOrders = marketplaceResult.data?.marketplaceEventOrderCreateds || [];
+      const purchasedOrders = marketplaceResult.data?.marketplaceEventOrderPurchaseds || [];
+      const cancelledOrders = marketplaceResult.data?.marketplaceEventOrderCancelleds || [];
 
-        // Get user's NFT balance
-        const balance = await contract.balanceOf(address);
-        console.log("User balance:", balance.toString());
-        
-        if (balance === 0) {
-          setNfts([]);
-          setLoading(false);
-          return;
+      // Create sets of order IDs that have been purchased or cancelled
+      const purchasedOrderIds = new Set(purchasedOrders.map((order: any) => order.orderId));
+      const cancelledOrderIds = new Set(cancelledOrders.map((order: any) => order.orderId));
+
+      // Filter to get active listings (created but not purchased or cancelled)
+      const activeListings = createdOrders.filter((order: any) => 
+        !purchasedOrderIds.has(order.orderId) && 
+        !cancelledOrderIds.has(order.orderId) &&
+        Number(order.endTime) > Date.now() / 1000 // Not expired
+      );
+
+      console.log("Active listings:", activeListings);
+
+      // Step 2: Fetch bridged ordinals - these are NFTs the user owns
+      console.log("Fetching bridged ordinals from Subsquid...");
+      const bridgedResponse = await fetch(subsquidEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: BRIDGED_ORDINALS_QUERY,
+          variables: {
+            address: address.toLowerCase(),
+          },
+        }),
+      });
+
+      if (!bridgedResponse.ok) {
+        throw new Error(`Subsquid API error for bridged ordinals: ${bridgedResponse.statusText}`);
+      }
+
+      const bridgedResult = await bridgedResponse.json();
+      console.log("Bridged ordinals:", bridgedResult);
+
+      const bridgedOrdinals = bridgedResult.data?.bridgeEventOrdinalBridgeds || [];
+      
+      // Step 3: Fetch transfers to identify purchased NFTs
+      console.log("Fetching NFT transfers from Subsquid...");
+      const transfersResponse = await fetch(subsquidEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: TRANSFERS_QUERY,
+          variables: {
+            address: address.toLowerCase(),
+          },
+        }),
+      });
+
+      if (!transfersResponse.ok) {
+        throw new Error(`Subsquid API error for transfers: ${transfersResponse.statusText}`);
+      }
+
+      const transfersResult = await transfersResponse.json();
+      console.log("NFT transfers:", transfersResult);
+
+      const transferredTokenIds = (transfersResult.data?.bridgeEventTransfers || []).map((event: any) => event.tokenId);
+      
+      // Step 4: Look for NFTs purchased by this user
+      const purchasedByUser = purchasedOrders.filter((order: any) => 
+        order.buyer && order.buyer.toLowerCase() === address.toLowerCase()
+      );
+      
+      console.log("Purchased by user:", purchasedByUser);
+      
+      // Extract token IDs from purchased orders by correlating with created orders
+      const purchasedTokenIds: string[] = [];
+      
+      // Create a map of created orders by orderId for faster lookup
+      const ordersById: Record<string, any> = {};
+      createdOrders.forEach((order: any) => {
+        ordersById[order.orderId] = order;
+      });
+      
+      // Loop through purchased orders
+      for (const purchase of purchasedByUser) {
+        // Find the original order to get the token ID
+        const originalOrder = ordersById[purchase.orderId];
+        if (originalOrder && originalOrder.tokenId) {
+          console.log(`Found token ID ${originalOrder.tokenId} for purchased order ${purchase.orderId}`);
+          purchasedTokenIds.push(originalOrder.tokenId);
+        } else {
+          console.log(`Could not find token ID for purchased order ${purchase.orderId}. Will try direct contract check.`);
         }
-
-        // Fetch all NFTs in parallel with better error handling
-        const nftPromises = Array.from({ length: Number(balance) }, async (_, i) => {
-          try {
-            // Get token ID for this index
-            const tokenId = await contract.tokenOfOwnerByIndex(address, i);
-            console.log(`Token ID at index ${i}:`, tokenId.toString());
-
-            // Verify ownership
-            const owner = await contract.ownerOf(tokenId);
-            if (owner.toLowerCase() !== address.toLowerCase()) {
-              console.log(`Token ${tokenId} ownership verification failed`);
-              return null;
-            }
-
-            // Get metadata and listing status in parallel
-            const [metadata, listingPrice] = await Promise.all([
-              contract.ordinalMetadata(tokenId).catch((err: any) => {
-                console.error(`Error fetching metadata for token ${tokenId}:`, err);
-                return null;
-              }),
-              contract.getListingPrice(tokenId).catch((err: any) => {
-                console.error(`Error fetching listing price for token ${tokenId}:`, err);
-                return BigInt(0);
-              }),
-            ]);
-
-            if (!metadata) {
-              console.log(`No metadata found for token ${tokenId}`);
-              return null;
-            }
-
-            // Construct NFT object
-            const nft: NFT = {
-              id: i + 1,
-              tokenId: tokenId.toString(),
-              name: `Ordinistan #${metadata.inscriptionNumber}`,
-              image: `https://api.hiro.so/ordinals/v1/inscriptions/${metadata.inscriptionId}/preview`,
-              price: listingPrice > 0 ? ethers.formatEther(listingPrice) + ' CORE' : 'Not Listed',
-              creator: address,
-              isListed: listingPrice > 0,
-              metadata: {
-                ...metadata,
-                satOrdinal: metadata.satOrdinal.toString(),
-              },
-            };
-
-            return nft;
-          } catch (err) {
-            console.error(`Error fetching NFT at index ${i}:`, err);
-            return null;
-          }
-        });
-
-        // Wait for all NFTs to be fetched and filter out any failed fetches
-        const fetchedNfts = (await Promise.all(nftPromises)).filter(isNFT);
-        console.log("Fetched NFTs:", fetchedNfts);
-        
-        setNfts(fetchedNfts);
-      } catch (err) {
-        console.error('Error fetching NFTs:', err);
-        setError('Failed to fetch NFTs from your wallet. Please try again.');
-      } finally {
-        setLoading(false);
       }
-    };
+      
+      console.log("Token IDs from purchases:", purchasedTokenIds);
+      
+      // Step 5: Create a set of token IDs from all sources
+      const allTokenIds = new Set([
+        ...bridgedOrdinals.map((ordinal: any) => ordinal.tokenId),
+        ...activeListings.map((listing: any) => listing.tokenId),
+        ...transferredTokenIds,
+        ...purchasedTokenIds
+      ]);
+      
+      // If we have no token IDs from events, check contract for ownership
+      if (allTokenIds.size === 0) {
+        console.log("No tokens found in events. Checking contract balance...");
+        
+        try {
+          // Check the balance of tokens owned by this address
+          const balance = await contract.balanceOf(address);
+          console.log(`User has ${balance.toString()} tokens according to contract`);
+          
+          if (balance > 0) {
+            // Try to use enumeration if available
+            try {
+              for (let i = 0; i < balance; i++) {
+                const tokenId = await contract.tokenOfOwnerByIndex(address, i);
+                console.log(`Found token by enumeration: ${tokenId.toString()}`);
+                allTokenIds.add(tokenId.toString());
+              }
+            } catch (enumErr) {
+              console.log("Contract doesn't support enumeration:", enumErr);
+              
+              // If enumeration isn't supported, we can try batch checking with recently known token ranges
+              // Get recent transfer activity to estimate token ID ranges
+              const recentTransfers = transfersResult.data?.bridgeEventTransfers || [];
+              let maxTokenId = 0;
+              
+              // Find the maximum token ID in recent transfers for a reference point
+              if (recentTransfers.length > 0) {
+                for (const transfer of recentTransfers) {
+                  const tokenIdNum = parseInt(transfer.tokenId);
+                  if (!isNaN(tokenIdNum) && tokenIdNum > maxTokenId) {
+                    maxTokenId = tokenIdNum;
+                  }
+                }
+                
+                // If we found a maximum token ID, scan around that range
+                if (maxTokenId > 0) {
+                  console.log(`Found maximum token ID in transfers: ${maxTokenId}. Scanning around this range...`);
+                  // Scan 100 tokens before and after the maximum token ID
+                  const scanRange = 100;
+                  
+                  // Create batches of 10 checks at a time to avoid overwhelming the RPC
+                  for (let start = maxTokenId - scanRange; start <= maxTokenId + scanRange; start += 10) {
+                    const checkPromises = [];
+                    for (let i = 0; i < 10; i++) {
+                      const tokenToCheck = start + i;
+                      if (tokenToCheck > 0) { // Avoid invalid token IDs
+                        checkPromises.push(
+                          (async () => {
+                            try {
+                              const owner = await contract.ownerOf(tokenToCheck.toString());
+                              if (owner.toLowerCase() === address.toLowerCase()) {
+                                console.log(`Found user-owned token by scan: ${tokenToCheck}`);
+                                return tokenToCheck.toString();
+                              }
+                            } catch {
+                              // Skip tokens that don't exist
+                            }
+                            return null;
+                          })()
+                        );
+                      }
+                    }
+                    
+                    const results = await Promise.all(checkPromises);
+                    results.filter(Boolean).forEach(tokenId => {
+                      if (tokenId) allTokenIds.add(tokenId);
+                    });
+                    
+                    // If we've found tokens matching the balance, we can stop
+                    if (allTokenIds.size >= balance.toNumber()) {
+                      console.log(`Found ${allTokenIds.size} tokens, matching the balance of ${balance.toString()}`);
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error checking token balance:", err);
+        }
+      }
 
-    fetchNFTs();
+      console.log("Final token IDs to process:", Array.from(allTokenIds));
+      
+      // Organize listings by token ID for easy lookup
+      const listingsByTokenId: Record<string, any> = {};
+      activeListings.forEach((listing: any) => {
+        listingsByTokenId[listing.tokenId] = listing;
+      });
+
+      // Check current ownership and fetch detailed metadata for each token
+      const nftsPromises = Array.from(allTokenIds).map(async (tokenId: string, index: number) => {
+        try {
+          // Find the listing for this token if it exists
+          const listing = listingsByTokenId[tokenId];
+          const isListed = !!listing;
+          
+          // Try to verify ownership for ALL tokens - essential for purchased NFTs
+          let isOwned = false;
+          try {
+            // If it's listed by the current user, we consider it "owned" for UI purposes
+            if (isListed && listing.seller.toLowerCase() === address.toLowerCase()) {
+              isOwned = true;
+            } else {
+              // Otherwise check actual ownership - this is crucial for purchased NFTs
+              const owner = await contract.ownerOf(tokenId);
+              isOwned = owner.toLowerCase() === address.toLowerCase();
+              console.log(`Token ${tokenId} ownership check: ${isOwned ? 'owned' : 'not owned'} by ${address}`);
+            }
+            
+            if (!isOwned && !isListed) {
+              console.log(`Token ${tokenId} is not owned by current user and not listed`);
+              return null;
+            }
+          } catch (ownerError) {
+            console.warn(`Failed to check ownership for ${tokenId}:`, ownerError);
+            if (!isListed) return null; // Skip if not listed and ownership check failed
+          }
+          
+          console.log(`Processing token ${tokenId}: owned=${isOwned}, listed=${isListed}`);
+          
+          // Find the bridged ordinal data if available
+          const ordinalData = bridgedOrdinals.find((ord: any) => ord.tokenId === tokenId);
+          
+          // Fetch complete metadata
+          let parsedMetadata: NFTMetadata;
+          
+          try {
+            const metadata = await contract.ordinalMetadata(tokenId);
+            console.log(`Metadata for token ${tokenId}:`, metadata);
+            
+            // Handle different response formats
+            if (Array.isArray(metadata)) {
+              parsedMetadata = {
+                inscriptionId: metadata[0],
+                inscriptionNumber: Number(metadata[1]),
+                contentType: metadata[2],
+                contentLength: Number(metadata[3]),
+                satOrdinal: metadata[4].toString(),
+                satRarity: metadata[5],
+                genesisTimestamp: Number(metadata[6]),
+                bridgeTimestamp: Number(metadata[7])
+              };
+            } else if (typeof metadata === 'object') {
+              parsedMetadata = {
+                inscriptionId: metadata.inscriptionId,
+                inscriptionNumber: Number(metadata.inscriptionNumber),
+                contentType: metadata.contentType,
+                contentLength: Number(metadata.contentLength),
+                satOrdinal: metadata.satOrdinal.toString(),
+                satRarity: metadata.satRarity,
+                genesisTimestamp: Number(metadata.genesisTimestamp),
+                bridgeTimestamp: Number(metadata.bridgeTimestamp)
+              };
+            } else {
+              throw new Error("Unexpected metadata format");
+            }
+          } catch (metadataError) {
+            console.warn(`Failed to fetch metadata for ${tokenId}:`, metadataError);
+            
+            // Use basic metadata from the bridged ordinal if available
+            parsedMetadata = {
+              inscriptionId: ordinalData?.inscriptionId || 'Unknown',
+              inscriptionNumber: 0,
+              contentType: ordinalData?.contentType || 'image/png',
+              contentLength: 0,
+              satOrdinal: ordinalData?.satOrdinal?.toString() || '0',
+              satRarity: 'Unknown',
+              genesisTimestamp: 0,
+              bridgeTimestamp: ordinalData ? Number(new Date(ordinalData.blockTimestamp).getTime() / 1000) : 0
+            };
+          }
+          
+          // Create the NFT object with data from both sources
+          return {
+            id: index + 1,
+            tokenId: tokenId,
+            name: `Ordinistan #${parsedMetadata.inscriptionNumber || (tokenId.substring(0, 6))}`,
+            image: parsedMetadata.inscriptionId !== 'Unknown'
+              ? `https://api.hiro.so/ordinals/v1/inscriptions/${parsedMetadata.inscriptionId}/content`
+              : `/placeholder-nft.png`,
+            price: isListed ? ethers.formatEther(listing.pricePerNft) + ' CORE' : 'Not Listed',
+            creator: address,
+            isListed: isListed,
+            orderId: isListed ? listing.orderId : undefined,
+            seller: isListed ? listing.seller : undefined,
+            metadata: parsedMetadata
+          };
+        } catch (err: any) {
+          console.error(`Error processing token ${tokenId}:`, err);
+          return null;
+        }
+      });
+      
+      const nftResults = await Promise.all(nftsPromises);
+      // Log the counts of NFTs for debugging
+      console.log(`Found ${nftResults.length} total NFTs, ${nftResults.filter(nft => nft !== null).length} valid NFTs`);
+      
+      // Filter out null values and ensure all fields are present
+      const validNfts = nftResults
+        .filter(nft => nft !== null)
+        .filter(nft => {
+          if (!nft) return false;
+          return (
+            typeof nft.id === 'number' &&
+            typeof nft.tokenId === 'string' &&
+            typeof nft.name === 'string' &&
+            typeof nft.image === 'string' &&
+            typeof nft.price === 'string' &&
+            typeof nft.creator === 'string' &&
+            typeof nft.isListed === 'boolean' &&
+            nft.metadata !== null
+          );
+        }) as NFT[];
+      
+      console.log("Valid NFTs:", validNfts);
+      setNfts(validNfts);
+    } catch (err: any) {
+      console.error('Error fetching NFTs:', err);
+      setError('Failed to fetch NFTs from your wallet. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [address, isConnected]);
 
+  // Initial fetch of NFTs
+  useEffect(() => {
+    fetchNFTs();
+  }, [fetchNFTs]);
+
+  // Refresh NFTs when returning to the portfolio page
+  useEffect(() => {
+    if (router.pathname === '/portfolio') {
+      // When we navigate to the portfolio page, refresh NFTs
+      console.log("On portfolio page, refreshing NFTs...");
+      fetchNFTs();
+    }
+  }, [router.pathname, fetchNFTs]);
+
   // Return listed and unlisted NFTs separately
-  const listedNFTs = nfts.filter(nft => nft.isListed);
-  const unlistedNFTs = nfts.filter(nft => !nft.isListed);
+  const listedNFTs = nfts.filter(nft => 
+    nft.isListed && nft.seller && nft.seller.toLowerCase() === address?.toLowerCase()
+  );
+  const unlistedNFTs = nfts.filter(nft => 
+    !nft.isListed
+  );
 
   return {
     nfts,
@@ -162,5 +534,6 @@ export function useWalletNFTs() {
     loading,
     error,
     isConnected,
+    refreshNFTs: fetchNFTs // Export refresh function
   };
-} 
+}

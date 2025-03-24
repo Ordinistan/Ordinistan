@@ -1,0 +1,46 @@
+{
+  "contract": "0x13748584Ea70ddd16273aF9a4797836d9eb7e7AA",
+  "events": [
+    {
+      "blockNumber": 7948343,
+      "transactionHash": "0x4f35ea02b31049366aa9f2d1a8d1c57241d915381a713c77083bd45a06027efc",
+      "inscriptionId": {
+        "hash": "0x96b7796ff0ad9b2b5411e14eb2ee8dd7fb4525b5a178abdb4c633f12fc2a77cc",
+        "_isIndexed": true
+      },
+      "tokenId": "7136699956915747",
+      "receiver": "0x3AC65f3D2B5f8127daf66881E6801F2A23C69FdE",
+      "contentType": "image/jpeg",
+      "satOrdinal": "1975973222666486"
+    }
+  ],
+  "inscriptions": {
+    "[object Object]": {
+      "tokenId": "7136699956915747",
+      "receiver": "0x3AC65f3D2B5f8127daf66881E6801F2A23C69FdE",
+      "contentType": "image/jpeg",
+      "satOrdinal": "1975973222666486"
+    }
+  },
+  "tokens": {
+    "7136699956915747": {
+      "inscriptionId": {
+        "hash": "0x96b7796ff0ad9b2b5411e14eb2ee8dd7fb4525b5a178abdb4c633f12fc2a77cc",
+        "_isIndexed": true
+      },
+      "receiver": "0x3AC65f3D2B5f8127daf66881E6801F2A23C69FdE",
+      "contentType": "image/jpeg",
+      "satOrdinal": "1975973222666486",
+      "metadata": {
+        "inscriptionId": "f2b3660b87d368a1e0167ec887c4682ef4a85d7ce56e2e96cfca51903be0ee23i0",
+        "inscriptionNumber": "89992152",
+        "contentType": "image/jpeg",
+        "contentLength": "5688",
+        "satOrdinal": "1975973222666486",
+        "satRarity": "common",
+        "genesisTimestamp": "1742200039000",
+        "bridgeTimestamp": "1742547072"
+      }
+    }
+  }
+}
