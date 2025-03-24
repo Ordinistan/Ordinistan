@@ -7,7 +7,7 @@ const MAX_FILE_SIZE = 350 * 1024;
 const InscribePage: React.FC = () => {
   const { isConnected, inscribe } = useBitcoinWallet();
   const [content, setContent] = useState('');
-  const [contentType, setContentType] = useState('text/plain');
+  const [contentType, setContentType] = useState('image/png');
   const [isInscribing, setIsInscribing] = useState(false);
   const [txId, setTxId] = useState('');
   const [error, setError] = useState('');
@@ -114,7 +114,7 @@ const InscribePage: React.FC = () => {
   const handleReset = () => {
     cleanupPreview();
     setContent('');
-    setContentType('text/plain');
+    setContentType('image/png');
     setSelectedFile(null);
     setPreviewUrl(null);
     setTxId('');
@@ -180,53 +180,37 @@ const InscribePage: React.FC = () => {
                 }}
                 className="w-full p-3 rounded-md bg-[#2A2A2A] border border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500"
               >
-                <option value="text/plain">Plain Text</option>
-                <option value="text/html">HTML</option>
-                <option value="application/json">JSON</option>
-                <option value="image/png">Image</option>
+                <option value="image/png">PNG Image</option>
+                <option value="image/jpeg">JPEG Image</option>
+                <option value="image/gif">GIF Image</option>
+                <option value="image/webp">WebP Image</option>
               </select>
             </div>
 
-            {contentType.startsWith('image/') ? (
-              <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2">
-                  Upload Image
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="w-full p-3 rounded-md bg-[#2A2A2A] border border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600"
-                />
-                <p className="mt-2 text-sm text-gray-400">
-                  Maximum file size: {(MAX_FILE_SIZE / 1024).toFixed(0)}KB. Supported formats: PNG, JPEG, GIF, WEBP
-                </p>
-                {previewUrl && (
-                  <div className="mt-4">
-                    <img
-                      src={previewUrl}
-                      alt="Preview"
-                      className="max-w-full h-auto rounded-lg border border-gray-600"
-                      style={{ maxHeight: '200px' }}
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div>
-                <label className="block text-gray-300 text-sm font-medium mb-2">
-                  Content
-                </label>
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="w-full p-3 rounded-md bg-[#2A2A2A] border border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500 h-32 font-mono"
-                  placeholder={isConnected ? `Enter your ${contentType.split('/')[1]} content here...` : "Connect wallet to create inscription"}
-                  required
-                  disabled={!isConnected}
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2">
+                Upload Image
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="w-full p-3 rounded-md bg-[#2A2A2A] border border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600"
+              />
+              <p className="mt-2 text-sm text-gray-400">
+                Maximum file size: {(MAX_FILE_SIZE / 1024).toFixed(0)}KB. Supported formats: PNG, JPEG, GIF, WEBP
+              </p>
+              {previewUrl && (
+                <div className="mt-4">
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
+                    className="max-w-full h-auto rounded-lg border border-gray-600"
+                    style={{ maxHeight: '200px' }}
+                  />
+                </div>
+              )}
+            </div>
 
             {error && (
               <div className="text-red-500 text-sm p-3 rounded-md bg-red-500/10 border border-red-500/20">
