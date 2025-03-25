@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
-import bridgeAbi from './bridge.json';
+import bridgeAbi from './Bridge.json';
 import { useRouter } from 'next/router';
 
 export interface NFTMetadata {
