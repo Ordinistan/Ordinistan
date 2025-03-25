@@ -9,6 +9,7 @@ dotenv.config();
 
 // Ensure private key exists
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "0000000000000000000000000000000000000000000000000000000000000000";
+const PRIVATE_KEY_CORE = process.env.PRIVATE_KEY_CORE || "0000000000000000000000000000000000000000000000000000000000000000";
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://sepolia.gateway.tenderly.co";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 
@@ -67,16 +68,13 @@ const config: ExtendedHardhatUserConfig = {
       url: SEPOLIA_RPC_URL,
       accounts: [PRIVATE_KEY],
       chainId: 11155111,
-      // verify: {
-      //   etherscan: {
-      //     apiKey: ETHERSCAN_API_KEY
-      //   }
-      // }
-    }
+    },
+    core: {
+      url: "https://rpc.coredao.org",
+      accounts: [PRIVATE_KEY_CORE],
+      chainId: 1116,
+    },
   },
-  // etherscan: {
-  //   apiKey: ETHERSCAN_API_KEY
-  // }
 };
 
 export default config;

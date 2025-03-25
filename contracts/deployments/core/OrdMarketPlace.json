@@ -1,0 +1,930 @@
+{
+  "address": "0x5405b0E3851f99699c1E5C092F50BAfdAe770a0b",
+  "abi": [
+    {
+      "type": "constructor",
+      "stateMutability": "undefined",
+      "payable": false,
+      "inputs": []
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "AddNFTSupport",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "nftAddress",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "AddTokenSupport",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "tokenAddress",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "AdminChanged",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "previousAdmin",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "newAdmin",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "BeaconUpgraded",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "beacon",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "BidAccepted",
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId",
+          "indexed": true
+        },
+        {
+          "type": "uint256",
+          "name": "bidId",
+          "indexed": false
+        },
+        {
+          "type": "uint16",
+          "name": "copies",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "BidPlaced",
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId",
+          "indexed": true
+        },
+        {
+          "type": "uint256",
+          "name": "bidIndex",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "bidder",
+          "indexed": false
+        },
+        {
+          "type": "uint16",
+          "name": "copies",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "pricePerNFT",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "startTime",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "endTime",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "BidRejected",
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId",
+          "indexed": true
+        },
+        {
+          "type": "uint256",
+          "name": "bidId",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "BidWithdraw",
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId",
+          "indexed": true
+        },
+        {
+          "type": "uint256",
+          "name": "bidId",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "ContractUpgraded",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "oldImplementation",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "newImplementation",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "FeeClaimed",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "tokenAddress",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "to",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "amount",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "Initialized",
+      "inputs": [
+        {
+          "type": "uint8",
+          "name": "version",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "OrderCancelled",
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "OrderCreated",
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId",
+          "indexed": true
+        },
+        {
+          "type": "uint256",
+          "name": "tokenId",
+          "indexed": true
+        },
+        {
+          "type": "uint256",
+          "name": "pricePerNFT",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "seller",
+          "indexed": false
+        },
+        {
+          "type": "uint16",
+          "name": "copies",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "startTime",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "endTime",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "paymentToken",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "nftContract",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "OrderPurchased",
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "buyer",
+          "indexed": false
+        },
+        {
+          "type": "uint16",
+          "name": "copies",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "OwnershipTransferred",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "previousOwner",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "newOwner",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "Upgraded",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "implementation",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "acceptBid",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId"
+        },
+        {
+          "type": "uint256",
+          "name": "bidId"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "addNftContractSupport",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "nftAddress"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "addTokenSupport",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "tokenAddress"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "bids",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": ""
+        },
+        {
+          "type": "uint256",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "address",
+          "name": "bidder"
+        },
+        {
+          "type": "uint256",
+          "name": "pricePerNFT"
+        },
+        {
+          "type": "uint16",
+          "name": "copies"
+        },
+        {
+          "type": "uint256",
+          "name": "startTime"
+        },
+        {
+          "type": "uint256",
+          "name": "endTime"
+        },
+        {
+          "type": "uint8",
+          "name": "status"
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "bulkBuy",
+      "constant": false,
+      "stateMutability": "payable",
+      "payable": true,
+      "inputs": [
+        {
+          "type": "uint256[]",
+          "name": "orderIds"
+        },
+        {
+          "type": "uint16[]",
+          "name": "amounts"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "buyNow",
+      "constant": false,
+      "stateMutability": "payable",
+      "payable": true,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId"
+        },
+        {
+          "type": "uint16",
+          "name": "copies"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "cancelOrder",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "collectAdminFees",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "tokenAddress"
+        },
+        {
+          "type": "address",
+          "name": "to"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "feeCollected",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "uint256",
+          "name": "feeGenerated"
+        },
+        {
+          "type": "uint256",
+          "name": "feeClaimed"
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "initialize",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "_platformFees"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "nftContracts",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "onERC1155BatchReceived",
+      "constant": true,
+      "stateMutability": "pure",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        },
+        {
+          "type": "address",
+          "name": ""
+        },
+        {
+          "type": "uint256[]",
+          "name": ""
+        },
+        {
+          "type": "uint256[]",
+          "name": ""
+        },
+        {
+          "type": "bytes",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bytes4",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "onERC1155Received",
+      "constant": true,
+      "stateMutability": "pure",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        },
+        {
+          "type": "address",
+          "name": ""
+        },
+        {
+          "type": "uint256",
+          "name": ""
+        },
+        {
+          "type": "uint256",
+          "name": ""
+        },
+        {
+          "type": "bytes",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bytes4",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "onERC721Received",
+      "constant": true,
+      "stateMutability": "pure",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        },
+        {
+          "type": "address",
+          "name": ""
+        },
+        {
+          "type": "uint256",
+          "name": ""
+        },
+        {
+          "type": "bytes",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bytes4",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "order",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "uint256",
+          "name": "tokenId"
+        },
+        {
+          "type": "uint256",
+          "name": "pricePerNFT"
+        },
+        {
+          "type": "uint16",
+          "name": "copies"
+        },
+        {
+          "type": "address",
+          "name": "seller"
+        },
+        {
+          "type": "uint256",
+          "name": "startTime"
+        },
+        {
+          "type": "uint256",
+          "name": "endTime"
+        },
+        {
+          "type": "address",
+          "name": "paymentToken"
+        },
+        {
+          "type": "address",
+          "name": "nftContract"
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "orderNonce",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "uint256",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "owner",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "placeOfferForOrder",
+      "constant": false,
+      "stateMutability": "payable",
+      "payable": true,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId"
+        },
+        {
+          "type": "uint16",
+          "name": "copies"
+        },
+        {
+          "type": "uint256",
+          "name": "pricePerNFT"
+        },
+        {
+          "type": "uint256",
+          "name": "endTime"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "placeOrderForSell",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "tokenId"
+        },
+        {
+          "type": "address",
+          "name": "nftContract"
+        },
+        {
+          "type": "uint16",
+          "name": "copies"
+        },
+        {
+          "type": "uint256",
+          "name": "pricePerNFT"
+        },
+        {
+          "type": "address",
+          "name": "paymentToken"
+        },
+        {
+          "type": "uint256",
+          "name": "endTime"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "platformFees",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "uint256",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "proxiableUUID",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "renounceOwnership",
+      "constant": false,
+      "payable": false,
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "setPlatformFees",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "fee"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "supportsInterface",
+      "constant": true,
+      "stateMutability": "pure",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes4",
+          "name": "interfaceId"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "tokensSupport",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "transferOwnership",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "newOwner"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "upgradeTo",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "newImplementation"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "upgradeToAndCall",
+      "constant": false,
+      "stateMutability": "payable",
+      "payable": true,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "newImplementation"
+        },
+        {
+          "type": "bytes",
+          "name": "data"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "withdrawRejectBid",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "uint256",
+          "name": "orderId"
+        },
+        {
+          "type": "uint256",
+          "name": "bidId"
+        },
+        {
+          "type": "bool",
+          "name": "isReject"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "receive",
+      "stateMutability": "payable"
+    }
+  ],
+  "network": "core",
+  "timestamp": 1742891999422,
+  "deployerAddress": "0xc4F4606112a528C81a3c7352a4aEf65761e20f39",
+  "platformFee": 1
+}

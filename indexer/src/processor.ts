@@ -9,7 +9,7 @@ export const processor = new EvmBatchProcessor()
     /// RPC endpoint to fetch latest blocks.
     /// Set RPC_URL environment variable, or specify ChainRpc endpoint
     /// @link https://docs.subsquid.io/sdk/reference/processors/evm-batch/general/#set-rpc-endpoint
-    .setRpcEndpoint("https://eth-sepolia.g.alchemy.com/v2/Hp5Za9Qlo3bRwT6zxRWtwzVoGq7Uqe8s")
+    .setRpcEndpoint("https://rpc.coredao.org")
     .setFinalityConfirmation(75)
     /// Specify which type of data needs to be extracted from the block
     /// @link https://docs.subsquid.io/sdk/reference/processors/evm-batch/field-selection/#set-fields
@@ -30,7 +30,7 @@ export const processor = new EvmBatchProcessor()
     /// Subscribe to events emitted by bridge
     .addLog({
         /// bridge address
-        address: ['0x13748584ea70ddd16273af9a4797836d9eb7e7aa'],
+        address: ['0xAA6005D95b61876E1B66191e9db39a66aceD3fa7'.toLowerCase()],
         /// Topic0 of subscribed events
         /// @link https://docs.subsquid.io/sdk/reference/processors/evm-batch/field-selection/#set-fields
         topic0: [
@@ -42,13 +42,13 @@ export const processor = new EvmBatchProcessor()
         ],
         /// Scanned blocks range
         range: {
-            from: 7948340,
+            from: 23196137,
         },
     })
     /// Subscribe to events emitted by marketplace
     .addLog({
         /// marketplace address
-        address: ['0x5eafc51b0d71c2d3de27b3b1b151f5178fe80111'],
+        address: ['0x5405b0E3851f99699c1E5C092F50BAfdAe770a0b'.toLowerCase()],
         /// Topic0 of subscribed events
         /// @link https://docs.subsquid.io/sdk/reference/processors/evm-batch/field-selection/#set-fields
         topic0: [
@@ -71,7 +71,7 @@ export const processor = new EvmBatchProcessor()
         ],
         /// Scanned blocks range
         range: {
-            from: 7948340,
+            from: 23196137,
         },
     })
     /// Uncomment this to specify the number of blocks after which the processor will consider the consensus data final
