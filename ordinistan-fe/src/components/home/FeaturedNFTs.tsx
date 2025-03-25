@@ -130,7 +130,7 @@ const FeaturedNFTs = () => {
 
         {filteredNfts.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-core-muted">No NFTs found. Connect your wallet to view your collection.</p>
+            <p className="text-core-muted">Connect your wallet to view NFTs.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">

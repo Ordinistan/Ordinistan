@@ -377,6 +377,14 @@ const NFTDetailPage = () => {
     const checkNftStatus = async () => {
       try {
         setLoading(true);
+
+        // Check if wallet is connected before proceeding
+        if (!isConnected || !address) {
+          setError('Please connect your wallet to view NFT details');
+          setLoading(false);
+          return;
+        }
+
         // Find the NFT by its token ID
         const nft = nfts.find(nft => nft.tokenId === id);
         
@@ -1258,11 +1266,32 @@ const NFTDetailPage = () => {
   }, [id, currentNFT, currentOrder, nftsLoading, ordersLoading, address, refreshNFTs]);
 
   if (loading || nftsLoading || ordersLoading) {
-  return (
+    return (
       <Layout>
         <div className="flex justify-center items-center h-96">
           <FaSpinner className="animate-spin text-4xl text-purple-600" />
           <span className="ml-3 text-xl">Loading NFT details...</span>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Early check for wallet connection before any error handling
+  if (!isConnected || !address) {
+    return (
+      <Layout>
+        <div className="flex flex-col justify-center items-center h-96 text-center p-4">
+          <h1 className="text-2xl font-bold text-purple-500 mb-4">Wallet Not Connected</h1>
+          <p className="text-gray-300">You need to connect your wallet to view NFT details.</p>
+          <p className="mt-2 text-gray-400">
+            Connecting your wallet allows us to verify ownership and display the correct information for this NFT.
+          </p>
+          <button 
+            className="mt-6 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+            onClick={() => router.push('/')}
+          >
+            Return to Home
+          </button>
         </div>
       </Layout>
     );
@@ -1274,11 +1303,20 @@ const NFTDetailPage = () => {
         <div className="flex flex-col justify-center items-center h-96 text-center p-4">
           <h1 className="text-2xl font-bold text-red-500 mb-4">Error</h1>
           <p className="text-gray-300">{error || 'NFT not found'}</p>
+          {error && error.includes('connect your wallet') ? (
+            <p className="mt-2 text-gray-400">
+              You need to connect your wallet to view NFT details. This allows us to verify ownership and display the correct information.
+            </p>
+          ) : null}
           <button 
             className="mt-6 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-            onClick={() => router.push('/portfolio')}
+            onClick={() => error && error.includes('connect your wallet') ? 
+              router.push('/') : router.push('/portfolio')
+            }
           >
-            Return to Portfolio
+            {error && error.includes('connect your wallet') ? 
+              'Return to Home' : 'Return to Portfolio'
+            }
           </button>
         </div>
       </Layout>
