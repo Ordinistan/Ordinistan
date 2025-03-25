@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
-import marketplaceAbi from './marketplace.json';
+import marketplaceAbi from './marketPlace.json';
 
 // Marketplace Contract ABI - only include functions we need
 const MARKETPLACE_ABI = marketplaceAbi;
