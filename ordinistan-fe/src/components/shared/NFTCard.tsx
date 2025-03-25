@@ -1,31 +1,104 @@
-import { FC } from 'react';
+import { FC, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { FiArrowRight } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import { NFT } from '../../hooks/useWalletNFTs';
 import { useAccount } from 'wagmi';
+import { ethers } from 'ethers';
+
+// Helper function to truncate address
+const truncateAddress = (address: string): string => {
+  if (!address) return '';
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+};
 
 interface NFTCardProps {
   nft: NFT;
   showAll?: boolean; // Added to control visibility of all NFTs on explore page
 }
 
-const truncateAddress = (address: string) => {
-  if (!address) return 'Unknown';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-};
-
 const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
   const router = useRouter();
   const { address } = useAccount();
+  const [isSold, setIsSold] = useState(false);
+  const [currentOwner, setCurrentOwner] = useState<string | null>(null);
+
+  // Check if the NFT has been sold through an accepted bid
+  useEffect(() => {
+    const checkNftStatus = async () => {
+      try {
+        // If we're dealing with a listed NFT, check if it has any accepted bids
+        if (nft.isListed && nft.orderId) {
+          const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+          const bidAcceptedQuery = `
+            {
+              marketplaceEventBidAccepteds(where: {orderId_eq: ${nft.orderId}}) {
+                id
+                orderId
+                bidId
+                blockTimestamp
+              }
+            }
+          `;
+          
+          const response = await fetch(subsquidEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: bidAcceptedQuery
+            })
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.data?.marketplaceEventBidAccepteds?.length > 0) {
+              console.log(`NFT ${nft.tokenId} was sold through accepted bid for order ${nft.orderId}`);
+              setIsSold(true);
+              
+              // Try to get the current owner
+              if (window.ethereum) {
+                try {
+                  const provider = new ethers.BrowserProvider(window.ethereum);
+                  const contract = new ethers.Contract(
+                    process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
+                    ['function ownerOf(uint256 tokenId) view returns (address)'],
+                    provider
+                  );
+                  
+                  const owner = await contract.ownerOf(nft.tokenId);
+                  setCurrentOwner(owner);
+                } catch (err) {
+                  console.error("Error checking current owner:", err);
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error checking NFT sold status:", error);
+      }
+    };
+    
+    checkNftStatus();
+  }, [nft.isListed, nft.orderId, nft.tokenId]);
 
   // Calculate if the NFT is listed by me or by someone else
   const isListedByMe = nft.isListed && nft.seller && address && nft.seller.toLowerCase() === address.toLowerCase();
   
+  // If the NFT was sold and the current user is the new owner, consider it an unlisted NFT
+  const isNewOwner = currentOwner && address && currentOwner.toLowerCase() === address.toLowerCase();
+  
   // Determine if this card should be shown in the current view
-  // On portfolio page (showAll=false), only show user's unlisted NFTs and their own listings
-  // On explore page (showAll=true), show all NFTs including those listed by others
-  const shouldShow = showAll || !nft.isListed || isListedByMe;
+  // On portfolio page (showAll=false), show:
+  // - User's unlisted NFTs
+  // - User's own listings that haven't been sold
+  // - NFTs the user has purchased (new owner)
+  // On explore page (showAll=true), show all NFTs except those sold via accepted bids
+  const shouldShow = (showAll && !isSold) || 
+                    (!showAll && (
+                      (!nft.isListed || isNewOwner) || 
+                      (isListedByMe && !isSold)
+                    ));
   
   if (!shouldShow) return null;
 
@@ -39,10 +112,10 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
     e.stopPropagation();
     
     // Navigate based on NFT state and ownership
-    if (nft.isListed && isListedByMe) {
+    if (nft.isListed && isListedByMe && !isSold) {
       // For user's own listings, go to manage page
       router.push(`/nft/${nft.tokenId}?action=manage`);
-    } else if (nft.isListed) {
+    } else if (nft.isListed && !isSold) {
       // For other's listings, go to buy page
       router.push(`/nft/${nft.tokenId}?action=buy`);
     } else {
@@ -73,7 +146,7 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
           <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent opacity-60" />
           
           {/* Price Tag */}
-          {nft.price && nft.price !== 'Not Listed' && (
+          {nft.price && nft.price !== 'Not Listed' && !isSold && (
             <div className="absolute top-3 right-3 bg-purple-500/90 backdrop-blur-sm text-white 
                            px-3 py-1 rounded-full text-xs font-semibold">
               {nft.price}
@@ -81,10 +154,18 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
           )}
           
           {/* Listed Badge */}
-          {nft.isListed && (
+          {nft.isListed && !isSold && (
             <div className={`absolute top-3 left-3 ${isListedByMe ? 'bg-blue-500/90' : 'bg-green-500/90'} backdrop-blur-sm text-white 
                            px-3 py-1 rounded-full text-xs font-semibold`}>
               {isListedByMe ? 'Your Listing' : 'Listed'}
+            </div>
+          )}
+          
+          {/* Sold Badge */}
+          {isSold && (
+            <div className="absolute top-3 left-3 bg-red-500/90 backdrop-blur-sm text-white 
+                           px-3 py-1 rounded-full text-xs font-semibold animate-pulse">
+              SOLD
             </div>
           )}
         </div>
@@ -106,7 +187,11 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
           {/* Bottom section with price and view button */}
           <div className="flex justify-between items-center mt-2">
             <div>
-              {nft.isListed ? (
+              {isSold ? (
+                <p className="text-gray-400 text-xs">
+                  Sold
+                </p>
+              ) : nft.isListed ? (
                 <p className="text-gray-400 text-xs">
                   Seller: {nft.seller ? (isListedByMe ? 'You' : truncateAddress(nft.seller)) : 'Unknown'}
                 </p>
@@ -120,7 +205,9 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
                         text-white text-sm rounded-md hover:from-purple-700 hover:to-purple-900 transition-colors"
               onClick={handleButtonClick}
             >
-              {nft?.isListed && isListedByMe ? 'Manage' : nft?.isListed ? 'Buy' : 'List for Sale'}
+              {isSold ? 'View' : 
+                (nft?.isListed && isListedByMe) ? 'Manage' : 
+                nft?.isListed ? 'Buy' : 'List for Sale'}
               <FiArrowRight className="ml-1" />
             </button>
           </div>

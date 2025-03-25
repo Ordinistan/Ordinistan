@@ -1,37 +1,92 @@
 import type { NextPage } from 'next';
 import Head from 'next/head';
 import NFTCard from '../components/shared/NFTCard';
-import { useState } from 'react';
-import { FiSearch, FiFilter } from 'react-icons/fi';
-import { NFT } from '../hooks/useWalletNFTs';
+import { useState, useEffect } from 'react';
+import { FiSearch, FiFilter, FiLoader } from 'react-icons/fi';
+import { useWalletNFTs, NFT } from '../hooks/useWalletNFTs';
 
 const Explore: NextPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const { nfts, loading, error } = useWalletNFTs();
+  const [filteredNfts, setFilteredNfts] = useState<NFT[]>([]);
+  const [loadingStatus, setLoadingStatus] = useState(true);
   
-  // This would eventually come from your API/backend
-  const allNFTs: NFT[] = Array(12).fill(null).map((_, index) => ({
-    id: index + 1,
-    tokenId: (index + 1234).toString(),
-    name: `Ordinal #${(index + 1234).toString()}`,
-    image: 'https://i0.wp.com/techtunestales.com/wp-content/uploads/2023/08/gojo-six-eyes.png?fit=1730%2C966&ssl=1',
-    price: `${(0.5 + index * 0.1).toFixed(1)} CORE`,
-    creator: "0x" + (index + 1234).toString(16) + "..." + (index + 5678).toString(16),
-    isListed: Math.random() > 0.5,
-    metadata: {
-      inscriptionId: `${(index + 9999).toString(16)}i0`,
-      inscriptionNumber: index + 1000,
-      contentType: 'image/png',
-      contentLength: 10000,
-      satOrdinal: '12345',
-      satRarity: 'common',
-      genesisTimestamp: Date.now() - 1000000,
-      bridgeTimestamp: Date.now() - 500000
-    }
-  }));
+  // Filter out sold NFTs by checking for accepted bids
+  useEffect(() => {
+    const filterSoldNfts = async () => {
+      if (loading) {
+        setLoadingStatus(true);
+        return;
+      }
 
-  const filteredNFTs = allNFTs.filter(nft => 
+      setLoadingStatus(true);
+      
+      try {
+        const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+        
+        // Get all bidAccepted events for all orders
+        const allOrderIds = nfts
+          .filter(nft => nft.isListed && nft.orderId)
+          .map(nft => nft.orderId);
+        
+        if (allOrderIds.length === 0) {
+          // No orders to check, just use all NFTs
+          setFilteredNfts(nfts);
+          setLoadingStatus(false);
+          return;
+        }
+        
+        // Query for accepted bids for these orders
+        const bidAcceptedQuery = `
+          {
+            marketplaceEventBidAccepteds {
+              orderId
+              bidId
+            }
+          }
+        `;
+        
+        const response = await fetch(subsquidEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: bidAcceptedQuery
+          })
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          const acceptedOrderIds = new Set(
+            (result.data?.marketplaceEventBidAccepteds || [])
+              .map((bid: any) => bid.orderId)
+          );
+          
+          // Filter out NFTs with accepted bids
+          const unsoldNfts = nfts.filter(nft => 
+            !nft.isListed || !nft.orderId || !acceptedOrderIds.has(nft.orderId)
+          );
+          
+          setFilteredNfts(unsoldNfts);
+        } else {
+          // If query fails, just use all NFTs
+          setFilteredNfts(nfts);
+        }
+      } catch (error) {
+        console.error("Error filtering sold NFTs:", error);
+        setFilteredNfts(nfts);
+      } finally {
+        setLoadingStatus(false);
+      }
+    };
+    
+    filterSoldNfts();
+  }, [nfts, loading]);
+
+  // Apply search filters
+  const searchFilteredNFTs = filteredNfts.filter(nft => 
     nft.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    nft.creator.toLowerCase().includes(searchTerm.toLowerCase())
+    (nft.seller && nft.seller.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (nft.metadata?.inscriptionId && nft.metadata.inscriptionId.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -52,30 +107,45 @@ const Explore: NextPage = () => {
               <div className="relative flex-grow">
                 <input
                   type="text"
-                  placeholder="Search by name or creator"
+                  placeholder="Search by name, address, or inscription"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full p-3 pl-10 rounded-xl border border-gray-200 focus:border-core-primary outline-none"
+                  className="w-full p-3 pl-10 rounded-xl border border-gray-700 bg-gray-800 focus:border-core-primary text-white outline-none"
                 />
                 <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               </div>
-              <button className="px-4 py-3 rounded-xl border border-gray-200 hover:border-core-primary 
-                               flex items-center gap-2 text-core-dark">
+              <button className="px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 hover:border-core-primary 
+                              flex items-center gap-2 text-white">
                 <FiFilter />
                 Filter
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredNFTs.map((nft, index) => (
-              <div key={nft.id} 
-                   className="animate-fade-in"
-                   style={{ animationDelay: `${index * 100}ms` }}>
-                <NFTCard nft={nft} showAll={true} />
-              </div>
-            ))}
-          </div>
+          {loading || loadingStatus ? (
+            <div className="flex justify-center items-center min-h-[400px]">
+              <FiLoader className="animate-spin text-3xl text-core-primary mr-2" />
+              <span className="text-white">Loading NFTs...</span>
+            </div>
+          ) : error ? (
+            <div className="flex justify-center items-center min-h-[400px]">
+              <div className="text-red-500">{error}</div>
+            </div>
+          ) : searchFilteredNFTs.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-white">No NFTs found matching your search criteria.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {searchFilteredNFTs.map((nft, index) => (
+                <div key={nft.id} 
+                     className="animate-fade-in"
+                     style={{ animationDelay: `${index * 100}ms` }}>
+                  <NFTCard nft={nft} showAll={true} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </>

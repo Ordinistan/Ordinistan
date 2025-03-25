@@ -103,6 +103,17 @@ const MARKETPLACE_LISTINGS_QUERY = `
       blockTimestamp
       blockNumber
     }
+    marketplaceEventBidAccepteds(orderBy: blockTimestamp_DESC) {
+      id
+      transactionHash
+      orderId
+      bidId
+      copies
+      eventName
+      contract
+      blockTimestamp
+      blockNumber
+    }
   }
 `;
 
@@ -141,10 +152,6 @@ export function useWalletNFTs() {
     try {
       setLoading(true);
       setError(null);
-
-      console.log("Connected address:", address);
-      console.log(`Starting NFT fetch at ${new Date().toISOString()}`);
-
       // Create contract instance
       const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
       const contract = new ethers.Contract(
@@ -153,8 +160,6 @@ export function useWalletNFTs() {
         provider
       );
       
-      // Step 1: Fetch all marketplace events to track listings, purchases, and cancellations
-      console.log("Fetching marketplace events from Subsquid...");
       const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
       
       // Fetch marketplace events
@@ -173,28 +178,39 @@ export function useWalletNFTs() {
       }
 
       const marketplaceResult = await marketplaceResponse.json();
-      console.log("Marketplace events:", marketplaceResult);
 
       // Process marketplace events to track which NFTs are listed, purchased, or cancelled
       const createdOrders = marketplaceResult.data?.marketplaceEventOrderCreateds || [];
       const purchasedOrders = marketplaceResult.data?.marketplaceEventOrderPurchaseds || [];
       const cancelledOrders = marketplaceResult.data?.marketplaceEventOrderCancelleds || [];
+      const acceptedBids = marketplaceResult.data?.marketplaceEventBidAccepteds || [];
 
-      // Create sets of order IDs that have been purchased or cancelled
       const purchasedOrderIds = new Set(purchasedOrders.map((order: any) => order.orderId));
       const cancelledOrderIds = new Set(cancelledOrders.map((order: any) => order.orderId));
+      const acceptedBidOrderIds = new Set(acceptedBids.map((bid: any) => bid.orderId));
 
-      // Filter to get active listings (created but not purchased or cancelled)
+      // Create a mapping of order IDs to their token IDs for accepted bids
+      const acceptedBidOrdersToTokenIds: Record<string, string> = {};
+      
+      for (const bid of acceptedBids) {
+        // Find the corresponding order to get the token ID
+        const order = createdOrders.find((o: any) => o.orderId === bid.orderId);
+        if (order) {
+          acceptedBidOrdersToTokenIds[bid.orderId] = order.tokenId;
+        }
+      }
+
+      // Get token IDs that were sold via accepted bids
+      const soldTokenIdsViaBids = Object.values(acceptedBidOrdersToTokenIds);
+      console.log("Token IDs sold via accepted bids:", soldTokenIdsViaBids);
+
       const activeListings = createdOrders.filter((order: any) => 
         !purchasedOrderIds.has(order.orderId) && 
         !cancelledOrderIds.has(order.orderId) &&
+        !acceptedBidOrderIds.has(order.orderId) &&
         Number(order.endTime) > Date.now() / 1000 // Not expired
       );
 
-      console.log("Active listings:", activeListings);
-
-      // Step 2: Fetch bridged ordinals - these are NFTs the user owns
-      console.log("Fetching bridged ordinals from Subsquid...");
       const bridgedResponse = await fetch(subsquidEndpoint, {
         method: 'POST',
         headers: {
@@ -213,12 +229,10 @@ export function useWalletNFTs() {
       }
 
       const bridgedResult = await bridgedResponse.json();
-      console.log("Bridged ordinals:", bridgedResult);
 
       const bridgedOrdinals = bridgedResult.data?.bridgeEventOrdinalBridgeds || [];
       
-      // Step 3: Fetch transfers to identify purchased NFTs
-      console.log("Fetching NFT transfers from Subsquid...");
+
       const transfersResponse = await fetch(subsquidEndpoint, {
         method: 'POST',
         headers: {
@@ -237,7 +251,6 @@ export function useWalletNFTs() {
       }
 
       const transfersResult = await transfersResponse.json();
-      console.log("NFT transfers:", transfersResult);
 
       const transferredTokenIds = (transfersResult.data?.bridgeEventTransfers || []).map((event: any) => event.tokenId);
       
@@ -246,7 +259,6 @@ export function useWalletNFTs() {
         order.buyer && order.buyer.toLowerCase() === address.toLowerCase()
       );
       
-      console.log("Purchased by user:", purchasedByUser);
       
       // Extract token IDs from purchased orders by correlating with created orders
       const purchasedTokenIds: string[] = [];
@@ -262,14 +274,10 @@ export function useWalletNFTs() {
         // Find the original order to get the token ID
         const originalOrder = ordersById[purchase.orderId];
         if (originalOrder && originalOrder.tokenId) {
-          console.log(`Found token ID ${originalOrder.tokenId} for purchased order ${purchase.orderId}`);
           purchasedTokenIds.push(originalOrder.tokenId);
-        } else {
-          console.log(`Could not find token ID for purchased order ${purchase.orderId}. Will try direct contract check.`);
-        }
+        } 
       }
       
-      console.log("Token IDs from purchases:", purchasedTokenIds);
       
       // Step 5: Create a set of token IDs from all sources
       const allTokenIds = new Set([
@@ -281,23 +289,19 @@ export function useWalletNFTs() {
       
       // If we have no token IDs from events, check contract for ownership
       if (allTokenIds.size === 0) {
-        console.log("No tokens found in events. Checking contract balance...");
         
         try {
           // Check the balance of tokens owned by this address
           const balance = await contract.balanceOf(address);
-          console.log(`User has ${balance.toString()} tokens according to contract`);
           
           if (balance > 0) {
             // Try to use enumeration if available
             try {
               for (let i = 0; i < balance; i++) {
                 const tokenId = await contract.tokenOfOwnerByIndex(address, i);
-                console.log(`Found token by enumeration: ${tokenId.toString()}`);
                 allTokenIds.add(tokenId.toString());
               }
             } catch (enumErr) {
-              console.log("Contract doesn't support enumeration:", enumErr);
               
               // If enumeration isn't supported, we can try batch checking with recently known token ranges
               // Get recent transfer activity to estimate token ID ranges
@@ -315,7 +319,6 @@ export function useWalletNFTs() {
                 
                 // If we found a maximum token ID, scan around that range
                 if (maxTokenId > 0) {
-                  console.log(`Found maximum token ID in transfers: ${maxTokenId}. Scanning around this range...`);
                   // Scan 100 tokens before and after the maximum token ID
                   const scanRange = 100;
                   
@@ -330,7 +333,6 @@ export function useWalletNFTs() {
                             try {
                               const owner = await contract.ownerOf(tokenToCheck.toString());
                               if (owner.toLowerCase() === address.toLowerCase()) {
-                                console.log(`Found user-owned token by scan: ${tokenToCheck}`);
                                 return tokenToCheck.toString();
                               }
                             } catch {
@@ -349,7 +351,6 @@ export function useWalletNFTs() {
                     
                     // If we've found tokens matching the balance, we can stop
                     if (allTokenIds.size >= balance.toNumber()) {
-                      console.log(`Found ${allTokenIds.size} tokens, matching the balance of ${balance.toString()}`);
                       break;
                     }
                   }
@@ -361,8 +362,6 @@ export function useWalletNFTs() {
           console.error("Error checking token balance:", err);
         }
       }
-
-      console.log("Final token IDs to process:", Array.from(allTokenIds));
       
       // Organize listings by token ID for easy lookup
       const listingsByTokenId: Record<string, any> = {};
@@ -373,9 +372,14 @@ export function useWalletNFTs() {
       // Check current ownership and fetch detailed metadata for each token
       const nftsPromises = Array.from(allTokenIds).map(async (tokenId: string, index: number) => {
         try {
+          // Check if this token was sold via an accepted bid
+          const wasAccepted = soldTokenIdsViaBids.includes(tokenId);
+          
           // Find the listing for this token if it exists
           const listing = listingsByTokenId[tokenId];
-          const isListed = !!listing;
+          
+          // Only consider a token as listed if it has an active listing and was not sold via accepted bid
+          const isListed = !!listing && !wasAccepted;
           
           // Try to verify ownership for ALL tokens - essential for purchased NFTs
           let isOwned = false;
@@ -387,20 +391,16 @@ export function useWalletNFTs() {
               // Otherwise check actual ownership - this is crucial for purchased NFTs
               const owner = await contract.ownerOf(tokenId);
               isOwned = owner.toLowerCase() === address.toLowerCase();
-              console.log(`Token ${tokenId} ownership check: ${isOwned ? 'owned' : 'not owned'} by ${address}`);
             }
             
             if (!isOwned && !isListed) {
-              console.log(`Token ${tokenId} is not owned by current user and not listed`);
               return null;
             }
           } catch (ownerError) {
             console.warn(`Failed to check ownership for ${tokenId}:`, ownerError);
             if (!isListed) return null; // Skip if not listed and ownership check failed
           }
-          
-          console.log(`Processing token ${tokenId}: owned=${isOwned}, listed=${isListed}`);
-          
+                    
           // Find the bridged ordinal data if available
           const ordinalData = bridgedOrdinals.find((ord: any) => ord.tokenId === tokenId);
           
@@ -409,7 +409,6 @@ export function useWalletNFTs() {
           
           try {
             const metadata = await contract.ordinalMetadata(tokenId);
-            console.log(`Metadata for token ${tokenId}:`, metadata);
             
             // Handle different response formats
             if (Array.isArray(metadata)) {
@@ -476,7 +475,6 @@ export function useWalletNFTs() {
       
       const nftResults = await Promise.all(nftsPromises);
       // Log the counts of NFTs for debugging
-      console.log(`Found ${nftResults.length} total NFTs, ${nftResults.filter(nft => nft !== null).length} valid NFTs`);
       
       // Filter out null values and ensure all fields are present
       const validNfts = nftResults
@@ -495,7 +493,6 @@ export function useWalletNFTs() {
           );
         }) as NFT[];
       
-      console.log("Valid NFTs:", validNfts);
       setNfts(validNfts);
     } catch (err: any) {
       console.error('Error fetching NFTs:', err);
@@ -510,11 +507,22 @@ export function useWalletNFTs() {
     fetchNFTs();
   }, [fetchNFTs]);
 
-  // Refresh NFTs when returning to the portfolio page
+  // Refresh NFTs when returning to relevant pages
   useEffect(() => {
-    if (router.pathname === '/portfolio') {
-      // When we navigate to the portfolio page, refresh NFTs
-      console.log("On portfolio page, refreshing NFTs...");
+    // Pages that display NFTs and should trigger a refresh
+    const nftDisplayPages = ['/portfolio', '/', '/explore', '/nft/[id]'];
+    
+    // Check if the current path matches any of the NFT display pages
+    const shouldRefresh = nftDisplayPages.some(page => {
+      if (page.includes('[id]')) {
+        // For dynamic routes, check if it follows the pattern
+        return router.pathname.startsWith('/nft/');
+      }
+      return router.pathname === page;
+    });
+    
+    if (shouldRefresh) {
+      console.log(`Refreshing NFTs due to navigation to ${router.pathname}`);
       fetchNFTs();
     }
   }, [router.pathname, fetchNFTs]);
