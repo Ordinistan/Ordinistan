@@ -5,6 +5,7 @@ import { useMarketplace, MarketplaceOrder } from '../../hooks/useMarketplace';
 import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
 import Image from 'next/image';
+import Link from 'next/link';
 import { FaEthereum, FaHeart, FaShareAlt, FaSpinner, FaInfoCircle, FaUserCircle, FaClock, FaCheck, FaTimes } from 'react-icons/fa';
 
 // GraphQL query for fetching bids
@@ -35,12 +36,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-500 to-purple-300 text-transparent bg-clip-text">Ordinistan</h1>
           <div className="flex space-x-2">
-            <a href="/portfolio" className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-white">
+            <Link href="/portfolio" className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-white">
               My Portfolio
-            </a>
-            <a href="/explore" className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors text-white">
+            </Link>
+            <Link href="/explore" className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors text-white">
               Explore
-            </a>
+            </Link>
           </div>
         </div>
       </header>
@@ -1266,7 +1267,7 @@ const NFTDetailPage = () => {
   }, [id, currentNFT, currentOrder, nftsLoading, ordersLoading, address, refreshNFTs]);
 
   if (loading || nftsLoading || ordersLoading) {
-    return (
+  return (
       <Layout>
         <div className="flex justify-center items-center h-96">
           <FaSpinner className="animate-spin text-4xl text-purple-600" />

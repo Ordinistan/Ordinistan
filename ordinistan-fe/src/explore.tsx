@@ -1,3 +1,5 @@
+import { NFT } from './hooks/useWalletNFTs';
+
 const allNFTs: NFT[] = Array(12).fill(null).map((_, index) => ({
   id: index + 1,
   tokenId: (index + 1234).toString(),

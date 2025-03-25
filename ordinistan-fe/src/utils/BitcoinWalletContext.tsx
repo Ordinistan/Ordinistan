@@ -1,14 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getAddress, AddressPurpose, BitcoinNetworkType, createInscription, request } from 'sats-connect';
 
-// Add bitcoin provider type
-declare global {
-  interface Window {
-    bitcoin?: {
-      request: (args: { method: string; params: any }) => Promise<any>;
-    };
-  }
-}
+// No need to redeclare the Window interface since it's defined in types/window.d.ts
 
 interface Ordinal {
   inscriptionId: string;
