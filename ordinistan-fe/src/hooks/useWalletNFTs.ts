@@ -160,7 +160,7 @@ export function useWalletNFTs() {
         provider
       );
       
-      const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+      const subsquidEndpoint = "https://api.ordinistan.io/graphql";
       
       // Fetch marketplace events
       const marketplaceResponse = await fetch(subsquidEndpoint, {

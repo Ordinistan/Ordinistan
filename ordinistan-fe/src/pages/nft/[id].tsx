@@ -140,7 +140,7 @@ const NFTDetailPage = () => {
       console.log("Fetching bids for order:", orderId);
       
       // Make GraphQL request to fetch bids
-      const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+      const subsquidEndpoint = "https://api.ordinistan.io/graphql";
 
       const orderIdForQuery = isNaN(Number(orderId)) ? orderId : Number(orderId);
       
@@ -295,7 +295,7 @@ const NFTDetailPage = () => {
   // Add a specific function to check if an NFT's listing has completed via bid acceptance
   const checkNftSoldStatus = async (tokenId: string, orderId?: string) => {
     try {
-      const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+      const subsquidEndpoint = "https://api.ordinistan.io/graphql";
       
       // First, if we don't have an orderId, try to find it
       let orderIdToCheck = orderId;

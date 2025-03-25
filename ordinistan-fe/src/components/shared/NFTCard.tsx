@@ -29,7 +29,7 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
       try {
         // If we're dealing with a listed NFT, check if it has any accepted bids
         if (nft.isListed && nft.orderId) {
-          const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+          const subsquidEndpoint = "https://api.ordinistan.io/graphql";
           const bidAcceptedQuery = `
             {
               marketplaceEventBidAccepteds(where: {orderId_eq: ${nft.orderId}}) {

@@ -21,7 +21,7 @@ const FeaturedNFTs = () => {
       setLoadingStatus(true);
       
       try {
-        const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+        const subsquidEndpoint = "https://api.ordinistan.io/graphql";
         
         // Get all bidAccepted events for all orders
         const allOrderIds = nfts

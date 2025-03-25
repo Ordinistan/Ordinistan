@@ -1,4 +1,4 @@
-archive: moonbeam
+archive: coredao
 target:
   type: postgres
 contracts:
@@ -10,16 +10,16 @@ contracts:
   #   range:
   #     from: 7948340  # Deployment block number
   - name: bridge
-    address: "0x13748584Ea70ddd16273aF9a4797836d9eb7e7AA"
+    address: "0xAA6005D95b61876E1B66191e9db39a66aceD3fa7"
     abi: ./abi/bridge.json
     events: true
     functions: false
     range:
-      from: 7948340  # Deployment block number
+      from: 23196137  # Deployment block number
   - name: marketplace
-    address: "0x5EAFc51b0d71C2d3DE27b3b1b151f5178Fe80111"
+    address: "0x5405b0E3851f99699c1E5C092F50BAfdAe770a0b"
     abi: ./abi/marketplace.json
     events: true
     functions: false
     range:
-      from: 7948340  # Deployment block number 
+      from: 23196137  # Deployment block number 

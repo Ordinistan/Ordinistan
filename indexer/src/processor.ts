@@ -2,15 +2,36 @@ import {EvmBatchProcessor, EvmBatchProcessorFields, BlockHeader, Log as _Log, Tr
 import * as bridgeAbi from './abi/bridge'
 import * as marketplaceAbi from './abi/marketplace'
 
-console.log("RPC_URL", process.env.RPC_URL)
+
+// Verify these are the correct mainnet addresses
+// const bridgeAddress = ('0xAA6005D95b61876E1B66191e9db39a66aceD3fa7').toLowerCase()
+// const marketplaceAddress = ('0x5405b0E3851f99699c1E5C092F50BAfdAe770a0b').toLowerCase()
+
+
+
+const bridgeAddress = ('0x13748584Ea70ddd16273aF9a4797836d9eb7e7AA').toLowerCase()
+const marketplaceAddress = ('0x5EAFc51b0d71C2d3DE27b3b1b151f5178Fe80111').toLowerCase()
+
+console.log('Starting indexer with following contract addresses:')
+console.log('Bridge contract:', bridgeAddress)
+console.log('Marketplace contract:', marketplaceAddress)
+
+// Start from a more recent block to improve catching up (current block - 5000)
+// const startFromBlock = 23196137
+
+const startFromBlock = 7947684
+
+
 export const processor = new EvmBatchProcessor()
     /// Datalake with historical data for the network
     /// @link https://docs.subsquid.io/subsquid-network/reference/evm-networks/
     /// RPC endpoint to fetch latest blocks.
     /// Set RPC_URL environment variable, or specify ChainRpc endpoint
     /// @link https://docs.subsquid.io/sdk/reference/processors/evm-batch/general/#set-rpc-endpoint
-    .setRpcEndpoint("https://rpc.coredao.org")
-    .setFinalityConfirmation(75)
+    // .setRpcEndpoint("https://core.public.infstones.com")
+    .setRpcEndpoint("https://eth-sepolia.g.alchemy.com/v2/Hp5Za9Qlo3bRwT6zxRWtwzVoGq7Uqe8s")
+    /// Reduce finality confirmation to catch blocks faster
+    .setFinalityConfirmation(10)
     /// Specify which type of data needs to be extracted from the block
     /// @link https://docs.subsquid.io/sdk/reference/processors/evm-batch/field-selection/#set-fields
     .setFields({
@@ -30,7 +51,7 @@ export const processor = new EvmBatchProcessor()
     /// Subscribe to events emitted by bridge
     .addLog({
         /// bridge address
-        address: ['0xAA6005D95b61876E1B66191e9db39a66aceD3fa7'.toLowerCase()],
+        address: [bridgeAddress],
         /// Topic0 of subscribed events
         /// @link https://docs.subsquid.io/sdk/reference/processors/evm-batch/field-selection/#set-fields
         topic0: [
@@ -42,13 +63,13 @@ export const processor = new EvmBatchProcessor()
         ],
         /// Scanned blocks range
         range: {
-            from: 23196137,
+            from: startFromBlock,
         },
     })
     /// Subscribe to events emitted by marketplace
     .addLog({
         /// marketplace address
-        address: ['0x5405b0E3851f99699c1E5C092F50BAfdAe770a0b'.toLowerCase()],
+        address: [marketplaceAddress],
         /// Topic0 of subscribed events
         /// @link https://docs.subsquid.io/sdk/reference/processors/evm-batch/field-selection/#set-fields
         topic0: [
@@ -71,13 +92,11 @@ export const processor = new EvmBatchProcessor()
         ],
         /// Scanned blocks range
         range: {
-            from: 23196137,
+            from: startFromBlock,
         },
     })
-    /// Uncomment this to specify the number of blocks after which the processor will consider the consensus data final
-    /// @link https://docs.subsquid.io/sdk/reference/processors/evm-batch/general/#set-finality-confirmation
-    // .setFinalityConfirmation(1000)
 
+console.log(`Indexer configured to start from block ${startFromBlock}`)
 
 export type Fields = EvmBatchProcessorFields<typeof processor>
 export type Block = BlockHeader<Fields>

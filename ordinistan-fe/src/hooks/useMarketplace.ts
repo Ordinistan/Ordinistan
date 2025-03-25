@@ -80,7 +80,7 @@ export function useMarketplace(tokenId?: string) {
         setError(null);
 
         // Use the subsquid GraphQL endpoint
-        const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+        const subsquidEndpoint = "https://api.ordinistan.io/graphql";
         
         console.log("Fetching marketplace orders for tokenId:", tokenId);
         
@@ -337,7 +337,7 @@ export function useUserListings() {
         setError(null);
 
         // Use the subsquid GraphQL endpoint
-        const subsquidEndpoint = "http://52.64.159.183:4350/graphql";
+        const subsquidEndpoint = "https://api.ordinistan.io/graphql";
         
         console.log("Fetching user listings for address:", address.toLowerCase());
         
