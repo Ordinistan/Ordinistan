@@ -1,0 +1,38 @@
+specVersion: 1.2.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: Bridge
+    network: moonbeam
+    source:
+      address: "0xAA6005D95b61876E1B66191e9db39a66aceD3fa7"
+      abi: Bridge
+      startBlock: 23196137
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Approval
+        - ApprovalForAll
+        - OrdinalBridged
+        - OwnershipTransferred
+        - Transfer
+      abis:
+        - name: Bridge
+          file: ./abis/Bridge.json
+      eventHandlers:
+        - event: Approval(indexed address,indexed address,indexed uint256)
+          handler: handleApproval
+        - event: ApprovalForAll(indexed address,indexed address,bool)
+          handler: handleApprovalForAll
+        - event: OrdinalBridged(indexed string,indexed uint256,indexed address,string,uint256)
+          handler: handleOrdinalBridged
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: Transfer(indexed address,indexed address,indexed uint256)
+          handler: handleTransfer
+      file: ./src/bridge.ts
