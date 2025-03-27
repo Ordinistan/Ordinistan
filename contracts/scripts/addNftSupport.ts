@@ -8,8 +8,8 @@ async function main() {
   console.log("Adding NFT contract support to OrdMarketPlace...");
   
   // Contract addresses from environment
-  const marketplaceAddress = "0x5EAFc51b0d71C2d3DE27b3b1b151f5178Fe80111";
-  const bridgeAddress = "0x13748584Ea70ddd16273aF9a4797836d9eb7e7AA";
+  const marketplaceAddress = "0x5405b0E3851f99699c1E5C092F50BAfdAe770a0b";
+  const bridgeAddress = "0xAA6005D95b61876E1B66191e9db39a66aceD3fa7";
   
   console.log(`Marketplace contract address: ${marketplaceAddress}`);
   console.log(`Bridge contract address to add: ${bridgeAddress}`);

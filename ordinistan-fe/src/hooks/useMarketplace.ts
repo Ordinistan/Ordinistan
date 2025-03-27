@@ -8,12 +8,12 @@ const MARKETPLACE_ABI = marketplaceAbi;
 
 // GraphQL query for marketplace orders - fixed to match schema types
 const MARKETPLACE_ORDERS_QUERY = `
-  query GetMarketplaceOrders($tokenId: String) {
-    marketplaceEventOrderCreateds(where: {tokenId_eq: $tokenId}) {
+  query GetMarketplaceOrders($tokenId: String!) {
+    orderCreateds(where: {tokenId: $tokenId}) {
       id
       orderId
       tokenId
-      pricePerNft
+      pricePerNFT
       seller
       copies
       startTime
@@ -29,11 +29,11 @@ const MARKETPLACE_ORDERS_QUERY = `
 // GraphQL query for marketplace orders by seller - fixed to match schema types
 const MARKETPLACE_SELLER_ORDERS_QUERY = `
   query GetSellerOrders($seller: String!) {
-    marketplaceEventOrderCreateds(where: {seller_eq: $seller}) {
+    orderCreateds(where: {seller: $seller}) {
       id
       orderId
       tokenId
-      pricePerNft
+      pricePerNFT
       seller
       copies
       startTime
@@ -49,7 +49,7 @@ const MARKETPLACE_SELLER_ORDERS_QUERY = `
 export interface MarketplaceOrder {
   orderId: string;
   tokenId: string;
-  pricePerNft: string;
+  pricePerNFT: string;
   seller: string;
   copies: number;
   startTime: string;
@@ -66,7 +66,7 @@ export function useMarketplace(tokenId?: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch token listings from subsquid
+  // Fetch token listings from The Graph
   useEffect(() => {
     const fetchOrders = async () => {
       if (!tokenId) {
@@ -79,12 +79,15 @@ export function useMarketplace(tokenId?: string) {
         setLoading(true);
         setError(null);
 
-        // Use the subsquid GraphQL endpoint
-        const subsquidEndpoint = "https://api.ordinistan.io/graphql";
+        // Use The Graph endpoint
+        const graphEndpoint = process.env.NEXT_PUBLIC_GRAPH_ENDPOINT;
+        if (!graphEndpoint) {
+          throw new Error('Graph endpoint not configured');
+        }
         
         console.log("Fetching marketplace orders for tokenId:", tokenId);
         
-        const response = await fetch(subsquidEndpoint, {
+        const response = await fetch(graphEndpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -98,7 +101,7 @@ export function useMarketplace(tokenId?: string) {
         });
 
         if (!response.ok) {
-          throw new Error(`Subsquid API error: ${response.statusText}`);
+          throw new Error(`Graph API error: ${response.statusText}`);
         }
 
         const result = await response.json();
@@ -109,8 +112,7 @@ export function useMarketplace(tokenId?: string) {
           throw new Error(result.errors[0].message);
         }
 
-        // Updated to match the correct field name from the schema
-        const ordersData = result.data?.marketplaceEventOrderCreateds || [];
+        const ordersData = result.data?.orderCreateds || [];
         setOrders(ordersData);
       } catch (err: any) {
         console.error('Error fetching marketplace orders:', err);
@@ -306,6 +308,73 @@ export function useMarketplace(tokenId?: string) {
     }
   };
 
+  // Hook to get user's own listings
+  const useUserListings = () => {
+    const [listings, setListings] = useState<MarketplaceOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+      const fetchUserListings = async () => {
+        if (!address || !isConnected) {
+          setListings([]);
+          setLoading(false);
+          return;
+        }
+
+        try {
+          setLoading(true);
+          setError(null);
+
+          // Use The Graph endpoint
+          const graphEndpoint = process.env.NEXT_PUBLIC_GRAPH_ENDPOINT;
+          if (!graphEndpoint) {
+            throw new Error('Graph endpoint not configured');
+          }
+          
+          console.log("Fetching user listings for address:", address.toLowerCase());
+          
+          const response = await fetch(graphEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: MARKETPLACE_SELLER_ORDERS_QUERY,
+              variables: {
+                seller: address.toLowerCase(),
+              },
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Graph API error: ${response.statusText}`);
+          }
+
+          const result = await response.json();
+
+          if (result.errors) {
+            console.error("GraphQL errors:", result.errors);
+            throw new Error(result.errors[0].message);
+          }
+
+          const listingsData = result.data?.orderCreateds || [];
+          setListings(listingsData);
+        } catch (err: any) {
+          console.error('Error fetching user listings:', err);
+          setError('Failed to fetch your listings. Please try again.');
+          setListings([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchUserListings();
+    }, [address, isConnected]);
+
+    return { listings, loading, error };
+  };
+
   return { 
     orders, 
     loading, 
@@ -313,73 +382,7 @@ export function useMarketplace(tokenId?: string) {
     listNFT, 
     buyNFT, 
     cancelListing, 
-    makeOffer 
+    makeOffer,
+    useUserListings
   };
-}
-
-// Hook to get user's own listings
-export function useUserListings() {
-  const { address, isConnected } = useAccount();
-  const [listings, setListings] = useState<MarketplaceOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchUserListings = async () => {
-      if (!address || !isConnected) {
-        setListings([]);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Use the subsquid GraphQL endpoint
-        const subsquidEndpoint = "https://api.ordinistan.io/graphql";
-        
-        console.log("Fetching user listings for address:", address.toLowerCase());
-        
-        const response = await fetch(subsquidEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            query: MARKETPLACE_SELLER_ORDERS_QUERY,
-            variables: {
-              seller: address.toLowerCase(),
-            },
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Subsquid API error: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        console.log("User listings response:", result);
-
-        if (result.errors) {
-          console.error("GraphQL errors:", result.errors);
-          throw new Error(result.errors[0].message);
-        }
-
-        // Updated to match the correct field name from the schema
-        const listingsData = result.data?.marketplaceEventOrderCreateds || [];
-        setListings(listingsData);
-      } catch (err: any) {
-        console.error('Error fetching user listings:', err);
-        setError('Failed to fetch your listings. Please try again.');
-        setListings([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserListings();
-  }, [address, isConnected]);
-
-  return { listings, loading, error };
 } 

@@ -29,53 +29,41 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
       try {
         // If we're dealing with a listed NFT, check if it has any accepted bids
         if (nft.isListed && nft.orderId) {
-          const subsquidEndpoint = "https://api.ordinistan.io/graphql";
+          const graphEndpoint = process.env.NEXT_PUBLIC_GRAPH_ENDPOINT;
+          if (!graphEndpoint) {
+            throw new Error('Graph endpoint not configured');
+          }
+
           const bidAcceptedQuery = `
             {
-              marketplaceEventBidAccepteds(where: {orderId_eq: ${nft.orderId}}) {
-                id
+              bidAccepteds(where: {orderId: "${nft.orderId}"}) {
                 orderId
                 bidId
-                blockTimestamp
+                buyer
               }
             }
           `;
-          
-          const response = await fetch(subsquidEndpoint, {
+
+          const response = await fetch(graphEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               query: bidAcceptedQuery
             })
           });
-          
+
           if (response.ok) {
             const result = await response.json();
-            if (result.data?.marketplaceEventBidAccepteds?.length > 0) {
-              console.log(`NFT ${nft.tokenId} was sold through accepted bid for order ${nft.orderId}`);
+            const acceptedBids = result.data?.marketplaceEventBidAccepteds || [];
+            
+            if (acceptedBids.length > 0) {
               setIsSold(true);
-              
-              // Try to get the current owner
-              if (window.ethereum) {
-                try {
-                  const provider = new ethers.BrowserProvider(window.ethereum);
-                  const contract = new ethers.Contract(
-                    process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
-                    ['function ownerOf(uint256 tokenId) view returns (address)'],
-                    provider
-                  );
-                  
-                  const owner = await contract.ownerOf(nft.tokenId);
-                  setCurrentOwner(owner);
-                } catch (err) {
-                  console.error("Error checking current owner:", err);
-                }
-              }
+              setCurrentOwner(acceptedBids[0].buyer);
             }
           }
         }
       } catch (error) {
-        console.error("Error checking NFT sold status:", error);
+        console.error("Error checking NFT status:", error);
       }
     };
     

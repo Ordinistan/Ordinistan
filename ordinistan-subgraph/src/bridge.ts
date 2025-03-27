@@ -50,8 +50,8 @@ export function handleOrdinalBridged(event: OrdinalBridgedEvent): void {
   entity.inscriptionId = event.params.inscriptionId
   entity.tokenId = event.params.tokenId
   entity.receiver = event.params.receiver
-  entity.contentType = event.params.contentType
-  entity.satOrdinal = event.params.satOrdinal
+  entity.contentURI = event.params.contentType.toString()
+  entity.timestamp = event.params.satOrdinal
 
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp

@@ -1,28 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import { useWalletNFTs } from '../../hooks/useWalletNFTs';
-import { useMarketplace, MarketplaceOrder } from '../../hooks/useMarketplace';
-import { ethers } from 'ethers';
-import { useAccount } from 'wagmi';
-import Image from 'next/image';
-import Link from 'next/link';
-import { FaEthereum, FaHeart, FaShareAlt, FaSpinner, FaInfoCircle, FaUserCircle, FaClock, FaCheck, FaTimes } from 'react-icons/fa';
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/router";
+import { useWalletNFTs, NFT } from "../../hooks/useWalletNFTs";
+import { useMarketplace, MarketplaceOrder } from "../../hooks/useMarketplace";
+import { ethers } from "ethers";
+import { useAccount } from "wagmi";
+import Image from "next/image";
+import Link from "next/link";
+import { FaEthereum, FaHeart, FaShareAlt, FaSpinner, FaInfoCircle, FaUserCircle, FaClock, FaCheck, FaTimes } from "react-icons/fa";
 
 // GraphQL query for fetching bids
 const MARKETPLACE_BIDS_QUERY = `
-  query GetBidsForOrder($orderId: BigInt!) {
-    marketplaceEventBidPlaceds(where: {orderId_eq: $orderId}) {
+  query GetBidsForOrder($orderId: String!) {
+    bidPlaceds(where: {orderId: $orderId}) {
       id
-      bidIndex
+      orderId
       bidder
       copies
-      pricePerNft
+      pricePerNFT
       startTime
       endTime
-      orderId
       blockTimestamp
-      eventName
-      contract
       transactionHash
     }
   }
@@ -54,45 +51,284 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const toast = {
   success: (message: string) => console.log(`Success: ${message}`),
   error: (message: string) => console.error(`Error: ${message}`),
-  info: (message: string) => console.info(`Info: ${message}`)
+  info: (message: string) => console.info(`Info: ${message}`),
 };
 
 // Helper to shorten addresses
 const shortenAddress = (address: string): string => {
-  if (!address) return '';
+  if (!address) return "";
   return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
 };
 
-// Helper function to format ETH values correctly
-const formatEther = (wei: string | number): string => {
+// Helper function to safely format ETH values that may be in different formats
+const safeFormatEther = (value: string | number | undefined): string => {
+  if (!value) return '0';
+  
   try {
-    // First convert to BigInt to handle large numbers correctly
-    const weiValue = BigInt(wei.toString());
-    // Convert to ETH using ethers.js
-    const ethValue = ethers.formatEther(weiValue);
+    // If it's already a decimal string (contains a period), just return it
+    if (typeof value === 'string' && value.includes('.')) {
+      return value;
+    }
     
-    // Parse to handle trailing zeros and potential scientific notation
-    const parsed = parseFloat(ethValue);
-    // Format with 4 decimals max
-    return parsed.toLocaleString(undefined, { 
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 4
-    });
+    // Otherwise, convert using ethers.formatEther
+    return ethers.formatEther(value.toString());
   } catch (err) {
-    console.error("Error formatting ETH value:", err);
-    return "0"; // Fallback value
+    console.error('Error formatting ETH value:', err);
+    return '0'; // Fallback value
   }
+};
+
+// Add helper function to create MarketplaceOrder objects correctly
+const createOrderObject = (
+  orderId: string,
+  tokenId: string,
+  price: string,
+  seller: string
+): MarketplaceOrder => {
+  return {
+    orderId,
+    tokenId,
+    pricePerNFT: price, // Note: using pricePerNFT to match MarketplaceOrder interface
+    seller,
+    copies: 1,
+    startTime: Math.floor(Date.now() / 1000 - 3600).toString(),
+    endTime: Math.floor(Date.now() / 1000 + 30 * 24 * 60 * 60).toString(),
+    paymentToken: ethers.ZeroAddress,
+    nftContract: process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS || '',
+    blockTimestamp: Math.floor(Date.now() / 1000 - 3600).toString(),
+    transactionHash: '0x'
+  };
+};
+
+// Helper function for type-safe ID access
+const getSafeId = (id: string | string[] | undefined): string => {
+  if (!id) return "";
+  return Array.isArray(id) ? id[0] : id;
+};
+
+// Update the checkDirectFromContract to receive the necessary functions and state variables
+const checkDirectFromContract = async (
+  tokenId: string,
+  currentAddress: string | undefined,
+  setNFT: React.Dispatch<React.SetStateAction<NFT | null>>,
+  setOwner: React.Dispatch<React.SetStateAction<boolean>>,
+  setOrder: React.Dispatch<React.SetStateAction<MarketplaceOrder | null>>,
+  setErr: React.Dispatch<React.SetStateAction<string | null>>,
+  fetchOrderBids: (orderId: string) => Promise<void>
+): Promise<NFT | null> => {
+  try {
+    console.log("Checking NFT directly from contract with tokenId:", tokenId);
+    if (!window.ethereum) {
+      console.error("No ethereum provider found");
+      return null;
+    }
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    
+    // Create contract instance for Bridge NFT
+    const bridgeContract = new ethers.Contract(
+      process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
+      [
+        "function tokenURI(uint256 tokenId) view returns (string)",
+        "function ownerOf(uint256 tokenId) view returns (address)"
+      ],
+      provider
+    );
+    
+    // Create contract instance for Marketplace
+    const marketplaceContract = new ethers.Contract(
+      process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
+      [
+        "function order(uint256 orderId) view returns (uint256 tokenId, uint256 pricePerNFT, uint16 copies, address seller, uint256 startTime, uint256 endTime, address paymentToken, address nftContract)"
+      ],
+      provider
+    );
+
+    // First check if token exists by trying to get its owner
+    let owner;
+    try {
+      owner = await bridgeContract.ownerOf(tokenId);
+      console.log("NFT owner:", owner);
+    } catch (err) {
+      console.log("Failed to get owner, NFT may not exist:", err);
+      return null;
+    }
+    
+    // If owner is marketplace contract, check if there's an active order
+    let isListed = false;
+    let orderId = undefined;
+    let price = undefined;
+    let seller = undefined;
+    
+    if (owner.toLowerCase() === process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!.toLowerCase()) {
+      console.log("NFT is owned by marketplace, checking for active orders");
+      
+      // Search for active orders in subgraph (we'd need to implement this)
+      // For now, simple approach - check all potential orderIds for this token
+      // This is a temporary solution until we have proper subgraph query
+      for (let i = 0; i < 100; i++) {
+        try {
+          const orderDetails = await marketplaceContract.order(i);
+          if (orderDetails.tokenId.toString() === tokenId &&
+              orderDetails.seller !== ethers.ZeroAddress) {
+            isListed = true;
+            
+            // Store orderId in both decimal and hex format
+            // Keep decimal for contract interactions
+            orderId = i.toString();
+            price = ethers.formatEther(orderDetails.pricePerNFT);
+            seller = orderDetails.seller;
+            console.log("Found active order:", {orderId, price, seller});
+            break;
+          }
+        } catch (err) {
+          // Order doesn't exist or error
+          continue;
+        }
+      }
+    } else {
+      // NFT is owned by a regular address
+      console.log("NFT is owned by regular address:", owner);
+    }
+    
+    // Fetch tokenURI to get metadata
+    let tokenURI;
+    try {
+      tokenURI = await bridgeContract.tokenURI(tokenId);
+      console.log("Token URI:", tokenURI);
+    } catch (err) {
+      console.log("Failed to get tokenURI:", err);
+      // Continue - we might still want to show basic NFT info
+    }
+    
+    // Parse metadata if available
+    let name = `Ordinistan #${tokenId}`;
+    let description = "Bridged Bitcoin Ordinal";
+    let imageUrl = "/placeholder-nft.jpg";
+    let inscriptionId = "Unknown";
+    let parsedMetadata: any = null;
+    
+    if (tokenURI) {
+      try {
+        // If tokenURI is base64 encoded
+        if (tokenURI.startsWith('data:application/json;base64,')) {
+          const base64Data = tokenURI.split(',')[1];
+          const decodedData = Buffer.from(base64Data, 'base64').toString('utf-8');
+          parsedMetadata = JSON.parse(decodedData);
+        } 
+        // If tokenURI is already JSON
+        else if (tokenURI.startsWith('{')) {
+          parsedMetadata = JSON.parse(tokenURI);
+        }
+        // If tokenURI is a URL
+        else {
+          try {
+            const response = await fetch(tokenURI);
+            parsedMetadata = await response.json();
+          } catch (err) {
+            console.log("Error fetching metadata from URI:", err);
+          }
+        }
+        
+        if (parsedMetadata) {
+          name = parsedMetadata.name || name;
+          description = parsedMetadata.description || description;
+          imageUrl = parsedMetadata.image || imageUrl;
+          
+          // Extract inscription ID if available
+          if (parsedMetadata.attributes && Array.isArray(parsedMetadata.attributes)) {
+            const inscriptionAttr = parsedMetadata.attributes.find(
+              (attr: any) => attr.trait_type === 'Inscription ID'
+            );
+            inscriptionId = inscriptionAttr?.value || inscriptionId;
+          }
+        }
+      } catch (err) {
+        console.log("Error parsing tokenURI:", err);
+      }
+    }
+    
+    // Create NFT object with all required metadata fields
+    const constructedNft: NFT = {
+      tokenId,
+      name,
+      description,
+      image: imageUrl,
+      isListed,
+      orderId,
+      price: price ? `${price} CORE` : undefined,
+      seller,
+      metadata: {
+        inscriptionId,
+        contentType: "Unknown",
+        satOrdinal: "Unknown",
+        satRarity: "Unknown",
+        inscriptionNumber: 0,
+        contentLength: 0,
+        genesisTimestamp: 0,
+        bridgeTimestamp: 0
+      }
+    };
+    
+    // Update component state with the found NFT
+    if (constructedNft) {
+      // Use the passed setter functions
+      setNFT(constructedNft);
+      
+      // Check if current wallet is the owner
+      const isCurrentUserOwner = currentAddress?.toLowerCase() === 
+        (owner.toLowerCase() === process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!.toLowerCase() 
+          ? seller?.toLowerCase() 
+          : owner.toLowerCase());
+          
+      setOwner(isCurrentUserOwner);
+      
+      // If listed, set current order
+      if (isListed && orderId) {
+        const order = createOrderObject(
+          orderId,
+          constructedNft.tokenId,
+          price || "0",
+          seller || ""
+        );
+        setOrder(order);
+        
+        // Fetch bids for this order
+        fetchOrderBids(orderId);
+      } else {
+        setOrder(null);
+      }
+    }
+    
+    return constructedNft;
+  } catch (error) {
+    console.error("Error checking NFT from contract:", error);
+    setErr("Failed to load NFT details from blockchain");
+    return null;
+  }
+};
+
+// Fix the getListingStatus function
+const getListingStatus = (order: MarketplaceOrder | null): { sold: boolean; buyer: string | null; timestamp: number | null } => {
+  if (!order) return { sold: false, buyer: null, timestamp: null };
+  
+  // Check if order was sold - for now this returns a default value
+  // This would need to be implemented based on your subgraph data
+  return { sold: false, buyer: null, timestamp: null };
 };
 
 const NFTDetailPage = () => {
   const router = useRouter();
   const { id } = router.query;
   const { address, isConnected } = useAccount();
-  const { nfts, loading: nftsLoading, refreshNFTs } = useWalletNFTs();
+  const { listedNFTs, unlistedNFTs, loading: nftsLoading, refreshNFTs } = useWalletNFTs();
   const { orders, loading: ordersLoading, error: marketplaceError, listNFT, buyNFT, cancelListing, makeOffer } = useMarketplace(id as string);
 
+  // Combine the NFTs arrays for searching
+  const nfts = [...listedNFTs, ...unlistedNFTs];
+
   // States for the NFT and user interactions
-  const [currentNFT, setCurrentNFT] = useState<any>(null);
+  const [currentNFT, setCurrentNFT] = useState<NFT | null>(null);
   const [currentOrder, setCurrentOrder] = useState<MarketplaceOrder | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -111,9 +347,9 @@ const NFTDetailPage = () => {
   const [rejectingBidId, setRejectingBidId] = useState<string | null>(null);
   
   // Form states
-  const [listingPrice, setListingPrice] = useState('');
-  const [offerPrice, setOfferPrice] = useState('');
-  const [offerDuration, setOfferDuration] = useState('7'); // Default 7 days
+  const [listingPrice, setListingPrice] = useState("");
+  const [offerPrice, setOfferPrice] = useState("");
+  const [offerDuration, setOfferDuration] = useState("7"); // Default 7 days
   
   // Bids state
   const [bids, setBids] = useState<any[]>([]);
@@ -124,6 +360,9 @@ const NFTDetailPage = () => {
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [managingMode, setManagingMode] = useState(false);
+  const [listingMode, setListingMode] = useState(false);
+  const [buyingMode, setBuyingMode] = useState(false);
 
   // Add a state to track NFT sold status
   const [isSold, setIsSold] = useState(false);
@@ -137,150 +376,135 @@ const NFTDetailPage = () => {
     
     try {
       setLoadingBids(true);
-      console.log("Fetching bids for order:", orderId);
       
-      // Make GraphQL request to fetch bids
-      const subsquidEndpoint = "https://api.ordinistan.io/graphql";
-
-      const orderIdForQuery = isNaN(Number(orderId)) ? orderId : Number(orderId);
+      // Use The Graph endpoint
+      const graphEndpoint = process.env.NEXT_PUBLIC_GRAPH_ENDPOINT;
+      if (!graphEndpoint) {
+        throw new Error('Graph endpoint not configured');
+      }
+      
+      // Convert orderId to decimal for GraphQL query if it's in hex
+      let orderIdForQuery = orderId;
+      if (typeof orderId === 'string' && orderId.startsWith('0x')) {
+        // Convert from hex to decimal
+        orderIdForQuery = parseInt(orderId, 16).toString();
+        console.log("Converting hex orderId to decimal for GraphQL query:", orderIdForQuery);
+      }
+      
+      // Create hex-formatted orderId with proper padding for Bytes encoding
+      // The subgraph expects a properly formatted bytes32 hex string
+      const paddedOrderId = (typeof orderIdForQuery === 'string' && orderIdForQuery.startsWith('0x'))
+        ? orderIdForQuery.padEnd(66, '0') // Already hex, just pad
+        : '0x' + Number(orderIdForQuery).toString(16).padStart(64, '0'); // Convert to hex and pad
+      
+      console.log("Using properly formatted orderId for GraphQL:", paddedOrderId);
       
       // First, fetch the placed bids
-      const bidPlacedQuery = `
-        {
-          marketplaceEventBidPlaceds(where: {orderId_eq: ${orderIdForQuery}}) {
-            id
-            bidIndex
-            bidder
-            copies
-            pricePerNft
-            startTime
-            endTime
-            orderId
-            blockTimestamp
-            eventName
-            contract
-            transactionHash
-          }
-        }
-      `;
-      
-      // Fetch withdrawn bids to filter them out
-      const bidWithdrawnQuery = `
-        {
-          marketplaceEventBidWithdraws(where: {orderId_eq: ${orderIdForQuery}}) {
-            transactionHash
-            orderId
-            id
-            eventName
-            contract
-            blockTimestamp
-            blockNumber
-            bidId
-          }
-        }
-      `;
-      
-      // Fetch rejected bids to mark them in the UI
-      const bidRejectedQuery = `
-        {
-          marketplaceEventBidRejecteds(where: {orderId_eq: ${orderIdForQuery}}) {
-            id
-            transactionHash
-            orderId
-            eventName
-            contract
-            blockTimestamp
-            blockNumber
-            bidId
-          }
-        }
-      `;
-            
-      const placedBidsResponse = await fetch(subsquidEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(graphEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: bidPlacedQuery
-        })
+          query: MARKETPLACE_BIDS_QUERY,
+          variables: { orderId: paddedOrderId }
+        }),
       });
-      
-      if (!placedBidsResponse.ok) {
-        console.error(`Failed to fetch placed bids: ${placedBidsResponse.status} ${placedBidsResponse.statusText}`);
-        const errorText = await placedBidsResponse.text();
-        console.error("Error response:", errorText);
-        throw new Error(`Failed to fetch placed bids: ${placedBidsResponse.statusText}`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch placed bids: ${response.statusText}`);
       }
-            
-      const withdrawnBidsResponse = await fetch(subsquidEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: bidWithdrawnQuery
-        })
-      });
+
+      // Fetch withdrawn bids to filter them out
+      const WITHDRAWN_BIDS_QUERY = `
+        query GetWithdrawnBids($orderId: String!) {
+          bidWithdraws(where: {orderId: $orderId}) {
+            id
+            orderId
+            blockTimestamp
+            transactionHash
+          }
+        }
+      `;
       
+      const withdrawnBidsResponse = await fetch(graphEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: WITHDRAWN_BIDS_QUERY,
+          variables: { orderId: paddedOrderId }
+        }),
+      });
+
       if (!withdrawnBidsResponse.ok) {
-        console.error(`Failed to fetch withdrawn bids: ${withdrawnBidsResponse.status} ${withdrawnBidsResponse.statusText}`);
-        const errorText = await withdrawnBidsResponse.text();
-        console.error("Error response:", errorText);
         throw new Error(`Failed to fetch withdrawn bids: ${withdrawnBidsResponse.statusText}`);
       }
-            
-      const rejectedBidsResponse = await fetch(subsquidEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      
+      // Fetch rejected bids to mark them in the UI
+      const REJECTED_BIDS_QUERY = `
+        query GetRejectedBids($orderId: String!) {
+          bidRejecteds(where: {orderId: $orderId}) {
+            id
+            orderId
+            bidId
+            blockTimestamp
+            transactionHash
+          }
+        }
+      `;
+
+      const rejectedBidsResponse = await fetch(graphEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: bidRejectedQuery
-        })
+          query: REJECTED_BIDS_QUERY,
+          variables: { orderId: paddedOrderId }
+        }),
       });
       
       if (!rejectedBidsResponse.ok) {
-        console.error(`Failed to fetch rejected bids: ${rejectedBidsResponse.status} ${rejectedBidsResponse.statusText}`);
-        const errorText = await rejectedBidsResponse.text();
-        console.error("Error response:", errorText);
         throw new Error(`Failed to fetch rejected bids: ${rejectedBidsResponse.statusText}`);
       }
       
-      const placedBidsResult = await placedBidsResponse.json();
+      const placedBidsResult = await response.json();
       const withdrawnBidsResult = await withdrawnBidsResponse.json();
       const rejectedBidsResult = await rejectedBidsResponse.json();
       
+      // Check for GraphQL errors and handle them gracefully
+      if (placedBidsResult.errors) {
+        // Log once instead of repeatedly
+        console.error("GraphQL error in fetchBids:", placedBidsResult.errors[0]?.message || "Unknown GraphQL error");
+        setBids([]);
+        return;
+      }
       
-      if (placedBidsResult.data && placedBidsResult.data.marketplaceEventBidPlaceds) {
+      if (placedBidsResult.data && placedBidsResult.data.bidPlaceds) {
         // Get the withdrawn bid IDs to filter them out completely
         const withdrawnBidIds = new Set();
-        if (withdrawnBidsResult.data && withdrawnBidsResult.data.marketplaceEventBidWithdraws) {
-          withdrawnBidsResult.data.marketplaceEventBidWithdraws.forEach((withdrawal: any) => {
-            withdrawnBidIds.add(withdrawal.bidId);
+        if (withdrawnBidsResult.data && withdrawnBidsResult.data.bidWithdraws) {
+          withdrawnBidsResult.data.bidWithdraws.forEach((withdrawal: any) => {
+            withdrawnBidIds.add(withdrawal.id);
           });
         }
         
         // Get the rejected bid IDs to mark them as rejected
         const rejectedBidIds = new Set();
-        if (rejectedBidsResult.data && rejectedBidsResult.data.marketplaceEventBidRejecteds) {
-          rejectedBidsResult.data.marketplaceEventBidRejecteds.forEach((rejection: any) => {
+        if (rejectedBidsResult.data && rejectedBidsResult.data.bidRejecteds) {
+          rejectedBidsResult.data.bidRejecteds.forEach((rejection: any) => {
             rejectedBidIds.add(rejection.bidId);
           });
         }
         
-        console.log("Withdrawn bid IDs:", Array.from(withdrawnBidIds));
-        console.log("Rejected bid IDs:", Array.from(rejectedBidIds));
-        
         // Filter out withdrawn bids and mark rejected bids
         const currentTime = Math.floor(Date.now() / 1000);
-        const processedBids = placedBidsResult.data.marketplaceEventBidPlaceds
-          .filter((bid: any) => 
-            Number(bid.endTime) > currentTime && !withdrawnBidIds.has(bid.bidIndex)
-          )
+        const processedBids = placedBidsResult.data.bidPlaceds
+          .filter((bid: any) => Number(bid.endTime) > currentTime && !withdrawnBidIds.has(bid.id))
           .map((bid: any) => ({
             ...bid,
-            isRejected: rejectedBidIds.has(bid.bidIndex)
+            // Use bid.id as the bidId for operations since it's a unique identifier
+            bidId: bid.id,
+            isRejected: rejectedBidIds.has(bid.id),
           }));
         
         setBids(processedBids);
-      } else if (placedBidsResult.errors) {
-        console.error("GraphQL errors:", placedBidsResult.errors);
-        setBids([]);
       } else {
         setBids([]);
       }
@@ -292,370 +516,416 @@ const NFTDetailPage = () => {
     }
   };
 
-  // Add a specific function to check if an NFT's listing has completed via bid acceptance
-  const checkNftSoldStatus = async (tokenId: string, orderId?: string) => {
-    try {
-      const subsquidEndpoint = "https://api.ordinistan.io/graphql";
-      
-      // First, if we don't have an orderId, try to find it
-      let orderIdToCheck = orderId;
-      if (!orderIdToCheck) {
-        // Query for orders with this token ID
-        const tokenIdQuery = `
-          query {
-            marketplaceEventOrderCreateds(where: {tokenId_eq: "${tokenId}"}) {
-              id
-              orderId
-              seller
-              tokenId
-            }
-          }
-        `;
-        
-        const orderResponse = await fetch(subsquidEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: tokenIdQuery
-          })
-        });
-        
-        if (orderResponse.ok) {
-          const orderResult = await orderResponse.json();
-          if (orderResult.data?.marketplaceEventOrderCreateds?.length > 0) {
-            const relevantOrders = orderResult.data.marketplaceEventOrderCreateds;
-            console.log("Found orders for this NFT ID:", relevantOrders);
-            // Use the first order ID found
-            orderIdToCheck = relevantOrders[0].orderId;
-          }
+  // Update function with type-safe id usage and hex orderId handling
+  const checkNftSoldStatus = async (tokenId: string, orderId: string): Promise<{ sold: boolean; buyer: string | null; timestamp: number | null }> => {
+    // Convert orderId to decimal for GraphQL query if it's in hex
+    let orderIdForQuery = orderId;
+    if (typeof orderId === 'string' && orderId.startsWith('0x')) {
+      // Convert from hex to decimal
+      orderIdForQuery = parseInt(orderId, 16).toString();
+      console.log("Converting hex orderId to decimal for sold status check:", orderIdForQuery);
+    }
+    
+    // Create hex-formatted orderId with proper padding for Bytes encoding
+    // The subgraph expects a properly formatted bytes32 hex string
+    const paddedOrderId = (typeof orderIdForQuery === 'string' && orderIdForQuery.startsWith('0x'))
+      ? orderIdForQuery.padEnd(66, '0') // Already hex, just pad
+      : '0x' + Number(orderIdForQuery).toString(16).padStart(64, '0'); // Convert to hex and pad
+    
+    console.log("Using properly formatted orderId for sold status check:", paddedOrderId);
+    
+    // Create GraphQL query to check if this order ID was purchased or has an accepted bid
+    const COMPLETED_ORDER_QUERY = `
+      query GetCompletedOrder($orderId: String!) {
+        orderPurchaseds(where: {orderId: $orderId}) {
+          id
+          buyer
+          blockTimestamp
         }
-      }
-      
-      // If we have an order ID, check for accepted bids
-      if (orderIdToCheck) {
-        const bidAcceptedQuery = `
-          {
-            marketplaceEventBidAccepteds(where: {orderId_eq: ${orderIdToCheck}}) {
-              id
-              orderId
+        bidAccepteds(where: {orderId: $orderId}) {
+          id
               bidId
               blockTimestamp
             }
           }
         `;
         
-        const response = await fetch(subsquidEndpoint, {
+    try {
+      const graphEndpoint = process.env.NEXT_PUBLIC_GRAPH_ENDPOINT;
+      if (!graphEndpoint) {
+        throw new Error('Graph endpoint not configured');
+      }
+
+      // Execute the query
+      const response = await fetch(graphEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            query: bidAcceptedQuery
+          query: COMPLETED_ORDER_QUERY,
+          variables: { orderId: paddedOrderId }
           })
         });
         
-        if (response.ok) {
           const result = await response.json();
-          if (result.data?.marketplaceEventBidAccepteds?.length > 0) {
-            console.log("Found accepted bids for NFT:", result.data.marketplaceEventBidAccepteds);
-            return {
-              sold: true,
-              acceptedBids: result.data.marketplaceEventBidAccepteds
-            };
-          }
-        }
+      
+      // Handle GraphQL errors
+      if (result.errors) {
+        console.error("GraphQL error in checkNftSoldStatus:", result.errors[0]?.message);
+        return { sold: false, buyer: null, timestamp: null };
       }
       
-      return { sold: false, acceptedBids: [] };
+      // Check if there are any purchase or accept events for this order
+      const purchases = result.data?.orderPurchaseds || [];
+      const acceptedBids = result.data?.bidAccepteds || [];
+      
+      if (purchases.length > 0) {
+        // Order was purchased directly
+        const purchase = purchases[0];
+            return {
+              sold: true,
+          buyer: purchase.buyer,
+          timestamp: parseInt(purchase.blockTimestamp)
+        };
+      } else if (acceptedBids.length > 0) {
+        // A bid was accepted for this order
+        const acceptedBid = acceptedBids[0];
+        
+        // We need to find the bidder - for now simplifying with unknown
+        return {
+          sold: true,
+          buyer: "Unknown", // Would need another query to find the actual bidder
+          timestamp: parseInt(acceptedBid.blockTimestamp)
+        };
+      }
+      
+      return { sold: false, buyer: null, timestamp: null };
     } catch (err) {
       console.error("Error checking if NFT was sold:", err);
-      return { sold: false, acceptedBids: [] };
+      return { sold: false, buyer: null, timestamp: null };
     }
   };
 
-  // Effect to find the NFT based on ID
+  // Add an effect to check for NFT updates and handle the case where an NFT view is outdated
   useEffect(() => {
-    if (!id || nftsLoading) return;
+    // Only run this effect when NFTs and orders are loaded
+    if (nftsLoading || ordersLoading || !id || !address || !currentNFT || !currentOrder) return;
     
-    const checkNftStatus = async () => {
+    // Check if there's been a bid acceptance for this order only once when the component loads
+    const checkOrderStatus = async () => {
       try {
-        setLoading(true);
-
-        // Check if wallet is connected before proceeding
-        if (!isConnected || !address) {
-          setError('Please connect your wallet to view NFT details');
-          setLoading(false);
-          return;
-        }
-
-        // Find the NFT by its token ID
-        const nft = nfts.find(nft => nft.tokenId === id);
-        
-        // Always check if this NFT has been sold via bid acceptance
-        const soldStatus = await checkNftSoldStatus(id as string);
-        setIsSold(soldStatus.sold);
-        
-        if (nft) {
-          setCurrentNFT(nft);
-          // Set isOwner only if the wallet address matches the NFT seller or the current address
-          const ownershipCheck = address?.toLowerCase() === (nft.seller || address)?.toLowerCase();
-          console.log("Ownership check:", { 
-            address: address?.toLowerCase(), 
-            seller: nft.seller?.toLowerCase(), 
-            isOwner: ownershipCheck,
-            soldStatus: soldStatus.sold
-          });
-          
-          // If NFT was sold via bid acceptance, update owner status
-          if (soldStatus.sold) {
-            console.log("NFT was previously sold through bid acceptance");
-            setIsOwner(false);
-            setCurrentOrder(null);
-            toast.info("This NFT has been sold and is no longer listed.");
+        const status = await checkNftSoldStatus(getSafeId(id), currentOrder.orderId);
+        if (status.sold) {
+          console.log(`NFT ${id} has been sold but UI is not updated`);
+          // Force immediate UI update
+          setCurrentOrder(null);
+          if (isOwner) {
+            toast.info("This NFT was sold. The listing is now removed.");
           } else {
-            setIsOwner(ownershipCheck);
-            console.log("Found NFT in wallet:", nft);
-            
-            // Check if NFT is already listed in the marketplace
-            if (orders && orders.length > 0) {
-              const existingOrder = orders.find(order => 
-                order.tokenId === id && 
-                order.seller.toLowerCase() === address?.toLowerCase()
-              );
-              
-              if (existingOrder) {
-                // Use our dedicated function to check for accepted bids
-                const orderSoldStatus = await checkNftSoldStatus(id as string, existingOrder.orderId);
-                
-                if (orderSoldStatus.sold) {
-                  console.log("Found accepted bids for this order:", orderSoldStatus.acceptedBids);
-                  // If there are accepted bids, the NFT is no longer listed
-                  setCurrentOrder(null);
-                } else {
-                  setCurrentOrder(existingOrder);
-                  console.log("Found listing for NFT:", existingOrder);
-                  // Fetch bids for this order
-                  if (existingOrder.orderId) {
-                    console.log("Calling fetchBids with orderId:", existingOrder.orderId);
-                    fetchBids(existingOrder.orderId);
-                  }
-                }
-              }
-            }
-            
-            // Important: If the NFT is marked as listed in our wallet data, we should set the currentOrder
-            // even if we didn't find it in orders (which might happen due to API issues)
-            if (!soldStatus.sold && nft.isListed && nft.orderId && !currentOrder) {
-              // Double-check if this order has been sold
-              const orderSoldStatus = await checkNftSoldStatus(id as string, nft.orderId);
-              
-              if (!orderSoldStatus.sold) {
-                console.log("NFT is listed according to wallet data:", nft);
-                // Create a minimal order object from the NFT data
-                const order = {
-                  orderId: nft.orderId,
-                  tokenId: nft.tokenId,
-                  pricePerNft: nft.price ? ethers.parseEther(nft.price.replace(' CORE', '')).toString() : '0',
-                  seller: nft.seller || address || '',
-                  copies: 1,
-                  startTime: Math.floor(Date.now() / 1000 - 3600).toString(), // 1 hour ago as example
-                  endTime: Math.floor(Date.now() / 1000 + 30 * 24 * 60 * 60).toString(), // 30 days from now
-                  paymentToken: ethers.ZeroAddress,
-                  nftContract: process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS || '',
-                  blockTimestamp: Math.floor(Date.now() / 1000 - 3600).toString(),
-                  transactionHash: '0x'
-                };
-                setCurrentOrder(order);
-                // Fetch bids for this order
-                if (nft.orderId) {
-                  console.log("Calling fetchBids with NFT orderId:", nft.orderId);
-                  fetchBids(nft.orderId);
-                }
-              } else {
-                // NFT was sold but our wallet data is outdated
-                console.log("NFT is marked as listed but has been sold - updating state");
-                setCurrentOrder(null);
-              }
-            }
+            toast.info("This NFT was recently purchased by someone else.");
           }
-        } else {
-          // If not in user's wallet, try to get info from orders
-          if (orders && orders.length > 0) {
-            // Check if there are accepted bids for any of these orders
-            const relevantOrder = orders[0];
+          
+          // Check if current user is the new owner
+          if (window.ethereum) {
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const bridgeContract = new ethers.Contract(
+              process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!, 
+              ["function ownerOf(uint256 tokenId) view returns (address)"], 
+              provider
+            );
             
-            // Use our dedicated function to check for accepted bids
-            const orderSoldStatus = await checkNftSoldStatus(id as string, relevantOrder.orderId);
-            
-            if (orderSoldStatus.sold) {
-              console.log("Found accepted bids for this order:", orderSoldStatus.acceptedBids);
-              // If there are accepted bids, the NFT is no longer listed
-              setCurrentOrder(null);
-              toast.info("This NFT was sold through the marketplace and is no longer listed.");
+            try {
+              const currentId = getSafeId(id);
+              const ownerAddress = await bridgeContract.ownerOf(currentId);
               
-              // Try to fetch the current owner by querying on-chain
-              if (window.ethereum) {
-                try {
-                  const provider = new ethers.BrowserProvider(window.ethereum);
-                  const contract = new ethers.Contract(
-                    process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
-                    ['function ownerOf(uint256 tokenId) view returns (address)'],
-                    provider
-                  );
-                  
-                  const currentOwner = await contract.ownerOf(id);
-                  console.log("Current owner of NFT:", currentOwner);
-                  
-                  if (currentOwner.toLowerCase() === address?.toLowerCase()) {
-                    toast.success("You are now the owner of this NFT!");
-                    setIsOwner(true);
-                  }
-                } catch (err) {
-                  console.error("Error checking current owner:", err);
-                }
+              if (ownerAddress.toLowerCase() === address.toLowerCase()) {
+                // The current user is the new owner!
+                toast.success("You are the new owner of this NFT!");
+                setIsOwner(true);
+                // Refresh NFTs to update the UI
+                refreshNFTs();
               }
-            } else {
-              setCurrentOrder(relevantOrder);
-              console.log("Found NFT in marketplace orders:", relevantOrder);
-              // Fetch bids for this order
-              if (relevantOrder.orderId) {
-                console.log("Calling fetchBids with orders[0] orderId:", relevantOrder.orderId);
-                fetchBids(relevantOrder.orderId);
-              }
+            } catch (err) {
+              console.error("Error checking ownership:", err);
             }
-            
-            // We need to fetch the metadata for this token from the bridge contract
-            // For now, use a placeholder and fallback image
-            const fetchMetadata = async () => {
-              try {
-                // Create a basic NFT object first with fallbacks
-                const basicNFT = {
-                  tokenId: relevantOrder.tokenId,
-                  name: `Ordinistan #${relevantOrder.tokenId}`,
-                  image: '/placeholder-nft.jpg',
-                  description: 'Bridged Bitcoin Ordinal',
-                  inscriptionId: 'Unknown',
-                  seller: relevantOrder.seller,
-                  metadata: {
-                    inscriptionId: 'Unknown',
-                    contentType: 'Unknown',
-                    satOrdinal: 'Unknown',
-                    satRarity: 'Unknown'
-                  }
-                };
-                
-                setCurrentNFT(basicNFT);
-                
-                // Set isOwner flag properly, accounting for possible ownership change from accepted bids
-                setIsOwner(address?.toLowerCase() === relevantOrder.seller.toLowerCase() && !orderSoldStatus.sold);
-                
-                // Try to fetch real metadata using ethers
-                if (window.ethereum) {
-                  const provider = new ethers.BrowserProvider(window.ethereum);
-                  const contract = new ethers.Contract(
-                    process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
-                    ['function ordinalMetadata(uint256 tokenId) view returns (tuple(string, uint256, string, uint256, string, string, uint256, uint256))'],
-                    provider
-                  );
-                  
-                  try {
-                    const metadata = await contract.ordinalMetadata(relevantOrder.tokenId);
-                    console.log("Fetched metadata:", metadata);
-                    
-                    if (metadata) {
-                      const inscriptionId = metadata[0] || 'Unknown';
-                      const imageUrl = inscriptionId !== 'Unknown' 
-                        ? `https://api.hiro.so/ordinals/v1/inscriptions/${inscriptionId}/content`
-                        : '/placeholder-nft.jpg';
-                        
-                      const updatedNFT = {
-                        ...basicNFT,
-                        image: imageUrl,
-                        inscriptionId: inscriptionId,
-                        metadata: {
-                          inscriptionId: inscriptionId,
-                          inscriptionNumber: Number(metadata[1]),
-                          contentType: metadata[2],
-                          contentLength: Number(metadata[3]),
-                          satOrdinal: metadata[4].toString(),
-                          satRarity: metadata[5],
-                          genesisTimestamp: Number(metadata[6]),
-                          bridgeTimestamp: Number(metadata[7])
-                        }
-                      };
-                      
-                      setCurrentNFT(updatedNFT);
-                    }
-                  } catch (metadataErr) {
-                    console.error("Failed to fetch metadata:", metadataErr);
-                  }
-                }
-              } catch (err) {
-                console.error("Error in fetchMetadata:", err);
-              }
-            };
-            
-            fetchMetadata();
           }
         }
-      } catch (err: any) {
-        console.error('Error finding NFT:', err);
-        setError('Error loading NFT details. Please try again.');
-      } finally {
-        setLoading(false);
+      } catch (err) {
+        console.error("Error checking NFT sold status:", err);
       }
     };
     
-    checkNftStatus();
+    // Only run once when component mounts or when order/NFT changes
+    checkOrderStatus();
     
-  }, [id, nfts, nftsLoading, orders, address, currentOrder]);
-
-  // Check for query parameters and set initial UI state
+    // Don't add checkOrderStatus to deps as it would cause an infinite loop
+  }, [id, currentNFT, currentOrder, nftsLoading, ordersLoading, address, isOwner, refreshNFTs]);
+  
+  // Update the main effect's dependency array
   useEffect(() => {
-    if (!router.isReady) return;
+    if (!id || !address) return;
     
-    const { action } = router.query;
+    const currentId = getSafeId(id);
+    console.log("Running NFT detail effect for ID:", currentId);
     
-    // When 'manage' action is present, the NFT should be displayed as listed
-    // This helps in cases where the API call to get orders might have failed
-    if (action === 'manage' && isOwner && currentNFT) {
-      console.log("Manage mode active for NFT:", currentNFT.tokenId);
-      
-      // If not already set, make sure the NFT is shown as listed
-      if (!currentOrder && !currentNFT.isListed) {
-        console.log("Forcing listed status based on manage action parameter");
-        // Update the currentNFT to be shown as listed
-        setCurrentNFT({
-          ...currentNFT,
-          isListed: true,
-          price: currentNFT.price || '0 CORE',
-          orderId: currentNFT.orderId || `auto-${Date.now()}` // Generate a temporary ID if needed
-        });
+    let isMounted = true;
+    
+    const checkNfts = async () => {
+      try {
+        if (!isConnected || !window.ethereum) {
+          if (isMounted) {
+            setError("Please connect your wallet to view NFT details");
+          setLoading(false);
+          }
+          return;
+        }
+
+        // First try to find the NFT in user's wallet NFTs (both listed and unlisted)
+        let nft = unlistedNFTs.find(n => n.tokenId === currentId);
+        
+        // If not found in unlisted, check listed NFTs
+        if (!nft) {
+          nft = listedNFTs.find(n => n.tokenId === currentId);
+        }
+        
+        // Create provider for contract interactions
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        
+        // If we found the NFT in the wallet
+        if (nft && isMounted) {
+          console.log("Found NFT in user's wallet:", nft.tokenId);
+
+          // Create marketplace contract
+          const marketplaceContract = new ethers.Contract(
+            process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
+            [
+              "function order(uint256 orderId) view returns (uint256 tokenId, uint256 pricePerNFT, uint16 copies, address seller, uint256 startTime, uint256 endTime, address paymentToken, address nftContract)"
+            ],
+            provider
+          );
+          
+          // If the NFT is marked as listed in our UI, let's verify with the contract
+          if (nft.isListed && nft.orderId) {
+            let orderExistsInContract = false;
+            
+            try {
+              console.log("Verifying listing status in contract for orderId:", nft.orderId);
+              
+              // Convert orderId to number format if it's in hex
+              let normalizedOrderId = nft.orderId;
+              if (typeof normalizedOrderId === 'string' && normalizedOrderId.startsWith('0x')) {
+                normalizedOrderId = parseInt(normalizedOrderId, 16).toString();
+                console.log("Converted hex orderId to decimal:", normalizedOrderId);
+              }
+              
+              const orderDetails = await marketplaceContract.order(normalizedOrderId);
+              
+              // Check if order exists (non-zero seller address) and matches this NFT
+              if (orderDetails.seller !== ethers.ZeroAddress && 
+                  orderDetails.tokenId.toString() === nft.tokenId) {
+                orderExistsInContract = true;
+                console.log("Confirmed: NFT is currently listed in contract");
+                } else {
+                console.log("NFT marked as listed in UI but not listed in contract.");
+              }
+            } catch (orderErr: any) {
+              console.log("Error verifying order status:", orderErr.message);
+            }
+            
+            // If the UI says it's listed but the contract says it's not,
+            // update our nft object
+            if (!orderExistsInContract) {
+              console.log("Fixing inconsistency: NFT is not actually listed");
+              nft = {
+                ...nft,
+                isListed: false,
+                orderId: undefined,
+                price: undefined
+              };
+            }
+          }
+          
+          setCurrentNFT(nft);
+          
+          // Set isOwner based on ownership check
+          const ownershipCheck = address?.toLowerCase() === (nft.seller || address)?.toLowerCase();
+          setIsOwner(ownershipCheck);
+          
+          // Check if NFT was sold (if it was previously listed)
+          const soldStatus = { sold: false, buyer: null, timestamp: null };
+          if (nft.orderId) {
+            const checkResult = await checkNftSoldStatus(currentId, nft.orderId);
+            if (checkResult.sold) {
+              soldStatus.sold = true;
+            }
+          }
+          
+          // If NFT is listed and order exists in contract, set up the order information
+          if (nft.isListed) {
+            if (nft.orderId) {
+              // Create order object from NFT data
+              const order = createOrderObject(
+                nft.orderId,
+                nft.tokenId,
+                nft.price ? nft.price.replace(" CORE", "") : "0",
+                nft.seller || address || ""
+              );
+                setCurrentOrder(order);
+              
+                // Fetch bids for this order
+                  fetchBids(nft.orderId);
+            } else if (orders && orders.length > 0) {
+              // Try to find matching order in the orders array
+              const existingOrder = orders.find(order => order.tokenId === currentId);
+              if (existingOrder) {
+                setCurrentOrder(existingOrder);
+                fetchBids(existingOrder.orderId);
+              }
+                }
+              } else {
+            // NFT is not listed
+                setCurrentOrder(null);
+              }
+            }
+        // If not found in wallet, check marketplace orders
+        else if (orders && orders.length > 0 && isMounted) {
+          const relevantOrder = orders.find(order => order.tokenId === currentId);
+          
+          if (relevantOrder) {
+            // Verify with contract that the order is real
+            let orderExistsInContract = false;
+            try {
+              const marketplaceContract = new ethers.Contract(
+                process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
+                [
+                  "function order(uint256 orderId) view returns (uint256 tokenId, uint256 pricePerNFT, uint16 copies, address seller, uint256 startTime, uint256 endTime, address paymentToken, address nftContract)"
+                ],
+                    provider
+                  );
+                  
+              const orderDetails = await marketplaceContract.order(relevantOrder.orderId);
+              if (orderDetails.seller !== ethers.ZeroAddress && 
+                  orderDetails.tokenId.toString() === currentId) {
+                orderExistsInContract = true;
+              }
+            } catch (orderErr: any) {
+              console.log("Error verifying marketplace order:", orderErr.message);
+            }
+            
+            if (!orderExistsInContract) {
+              console.log("Order doesn't exist in contract, checking directly from chain");
+              if (isMounted) {
+                await checkDirectFromContract(
+                  currentId, 
+                  address, 
+                  setCurrentNFT, 
+                  setIsOwner, 
+                  setCurrentOrder, 
+                  setError, 
+                  fetchBids
+                );
+              }
+              return;
+            }
+            
+            // Check if order was sold
+            const orderSoldStatus = await checkNftSoldStatus(currentId, relevantOrder.orderId);
+            
+            if (orderSoldStatus.sold && isMounted) {
+              setCurrentOrder(null);
+            } else if (isMounted) {
+              setCurrentOrder(relevantOrder);
+                fetchBids(relevantOrder.orderId);
+
+              // Create a basic NFT object
+                const basicNFT = {
+                  tokenId: relevantOrder.tokenId,
+                  name: `Ordinistan #${relevantOrder.tokenId}`,
+                image: "/placeholder-nft.jpg", 
+                description: "Bridged Bitcoin Ordinal",
+                inscriptionId: "Unknown",
+                  seller: relevantOrder.seller,
+                isListed: true, // Mark as listed since it has an active order
+                orderId: relevantOrder.orderId, // Add orderId to prevent UI inconsistency
+                price: `${safeFormatEther(relevantOrder.pricePerNFT)} CORE`, // Add price for consistency
+                  metadata: {
+                  inscriptionId: "Unknown",
+                  contentType: "Unknown",
+                  satOrdinal: "Unknown",
+                  satRarity: "Unknown",
+                  inscriptionNumber: 0,
+                  contentLength: 0,
+                  genesisTimestamp: 0,
+                  bridgeTimestamp: 0
+                },
+                };
+                
+                setCurrentNFT(basicNFT);
+              setIsOwner(address?.toLowerCase() === relevantOrder.seller.toLowerCase());
+            }
+          } 
+          // Not found in orders - try direct contract lookup
+          else if (isMounted) {
+            await checkDirectFromContract(
+              currentId, 
+              address, 
+              setCurrentNFT, 
+              setIsOwner, 
+              setCurrentOrder, 
+              setError, 
+              fetchBids
+            );
+          }
+        } 
+        // Last resort - check directly on blockchain
+        else if (isMounted) {
+          await checkDirectFromContract(
+            currentId, 
+            address, 
+            setCurrentNFT, 
+            setIsOwner, 
+            setCurrentOrder, 
+            setError, 
+            fetchBids
+          );
+        }
+      } catch (err: any) {
+        console.error("Error finding NFT:", err);
+        if (isMounted) {
+          setError("Error loading NFT details. Please try again.");
+        }
+      } finally {
+        if (isMounted) {
+        setLoading(false);
+        }
       }
-    } else if (action === 'list' && isOwner && !currentOrder) {
-      setShowListingForm(true);
-    } else if (action === 'buy' && !isOwner && currentOrder) {
-      // Perhaps auto-focus the buy button or show additional info
-      console.log("Buy mode active");
+    };
+    
+    checkNfts();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [id, address, isConnected, listedNFTs, unlistedNFTs, orders]);
+
+  // Debug logging: Reduce excessive logging by removing unnecessary console.log statements
+  // Only log the current bids state once when it changes
+  useEffect(() => {
+    if (bids.length > 0) {
+      console.log(`NFT ${id}: ${bids.length} active bids available`);
     }
-  }, [router.isReady, router.query, isOwner, currentOrder, currentNFT]);
+  }, [bids, id]);
 
-  // Handle UI interactions
-  const handleLike = () => {
-    setLiked(!liked);
-    setLikeCount(liked ? likeCount - 1 : likeCount + 1);
-    toast.success(liked ? 'Removed from favorites' : 'Added to favorites');
-  };
-
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    toast.success('Link copied to clipboard!');
-  };
-
-  // Marketplace functions
+  // Fix the handleListNFT function to properly handle the placeOrderForSell call
   const handleListNFT = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
     if (!listingPrice || parseFloat(listingPrice) <= 0) {
-      toast.error('Please enter a valid price');
+      toast.error("Please enter a valid price");
+      return;
+    }
+    
+    if (!currentNFT) {
+      toast.error("NFT data not available");
       return;
     }
 
@@ -670,53 +940,37 @@ const NFTDetailPage = () => {
       // Create bridge contract instance to check/set approval
       const bridgeContract = new ethers.Contract(
         process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
-        ['function isApprovedForAll(address owner, address operator) view returns (bool)', 
-         'function setApprovalForAll(address operator, bool approved)'],
+        ["function isApprovedForAll(address owner, address operator) view returns (bool)", "function setApprovalForAll(address operator, bool approved)"],
         signer
       );
       
       // Check if marketplace is approved to handle NFTs
-      const isApproved = await bridgeContract.isApprovedForAll(
-        address,
-        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS
-      );
+      const isApproved = await bridgeContract.isApprovedForAll(address, process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS);
       
       console.log("Is marketplace approved for NFTs:", isApproved);
       
       // If not approved, request approval first
       if (!isApproved) {
-        toast.info('Approving marketplace to access your NFTs...');
-        const approveTx = await bridgeContract.setApprovalForAll(
-          process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS,
-          true
-        );
+        toast.info("Approving marketplace to access your NFTs...");
+        const approveTx = await bridgeContract.setApprovalForAll(process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS, true);
         await approveTx.wait();
-        toast.success('Marketplace approved successfully!');
+        toast.success("Marketplace approved successfully!");
       }
-      
-      // Create marketplace contract instance
-      const marketplaceContract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
-        ['function placeOrderForSell(uint256 tokenId, address nftContract, uint16 copies, uint256 pricePerNFT, address paymentToken, uint256 endTime)'],
-        signer
-      );
       
       // Convert price from CORE to wei
       const priceInWei = ethers.parseEther(listingPrice);
       
       // Calculate end time (current time + 30 days in seconds)
-      const endTime = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
+      const endTime = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
       
-      console.log("Listing NFT with parameters:", {
-        tokenId: currentNFT.tokenId,
-        nftContract: process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
-        copies: 0, // ERC721
-        priceInWei: priceInWei.toString(),
-        paymentToken: ethers.ZeroAddress, // Native token (CORE)
-        endTime
-      });
+      // Create marketplace contract instance
+      const marketplaceContract = new ethers.Contract(
+        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
+        ["function placeOrderForSell(uint256 tokenId, address nftContract, uint16 copies, uint256 pricePerNFT, address paymentToken, uint256 endTime)"],
+        signer
+      );
       
-      // Submit listing transaction
+      // Submit listing transaction - fix parameter order if needed based on contract implementation
       const tx = await marketplaceContract.placeOrderForSell(
         currentNFT.tokenId,
         process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
@@ -726,29 +980,72 @@ const NFTDetailPage = () => {
         endTime
       );
       
-      toast.info('Listing transaction submitted. Waiting for confirmation...');
+      toast.info("Listing transaction submitted. Waiting for confirmation...");
       
       // Wait for transaction to be confirmed
       const receipt = await tx.wait();
-      console.log('Listing transaction confirmed:', receipt);
+      console.log("Listing transaction confirmed:", receipt);
       
-      toast.success('NFT listed successfully!');
+      // Try to extract orderId from logs if possible
+      let orderId: string | undefined;
+      try {
+        // Find the OrderCreated event and extract orderId
+        const OrderCreatedEvent = receipt.logs
+          ?.filter((log: any) => log.topics[0] === "0x7b18a2f74f1f95529ecb2f6da83a3eb5ec97c0c56f1b8715d7a06ef620d67e50")
+          ?.map((log: any) => marketplaceContract.interface.parseLog(log))[0];
+        
+        if (OrderCreatedEvent && OrderCreatedEvent.args) {
+          orderId = OrderCreatedEvent.args.orderId?.toString();
+          console.log("Successfully extracted orderId from logs:", orderId);
+        }
+      } catch (err) {
+        console.log("Could not extract orderId from logs:", err);
+      }
+      
+      // Update local state immediately without waiting for subgraph
+      // This ensures UI reflects the listing even if the subgraph is delayed
+      if (currentNFT) {
+        // Force update the current NFT status
+        setCurrentNFT({
+          ...currentNFT,
+          isListed: true,
+          orderId: orderId || "pending", // Use extracted orderId or "pending"
+          price: `${listingPrice} CORE`,
+          seller: address || ""
+        });
+        
+        // Create and set current order state
+        const orderObject = createOrderObject(
+          orderId || "pending",
+          currentNFT.tokenId,
+          listingPrice,
+          address || ""
+        );
+        setCurrentOrder(orderObject);
+      }
+      
+      toast.success("NFT listed successfully!");
       setShowListingForm(false);
       
+      // Refresh NFTs to update the UI more completely
+      await refreshNFTs();
+      
       // Redirect to portfolio only after confirmation
-      router.push('/portfolio');
+      router.push("/portfolio");
     } catch (err: any) {
-      console.error('Error listing NFT:', err);
-      let errorMessage = 'Transaction failed';
+      console.error("Error listing NFT:", err);
+      let errorMessage = "Transaction failed";
       
       // Extract more specific error message if available
       if (err.message) {
-        if (err.message.includes('user rejected transaction')) {
-          errorMessage = 'Transaction rejected by user';
-        } else if (err.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient funds for gas';
-        } else if (err.message.includes('Invalid NFT Contract')) {
-          errorMessage = 'Invalid NFT Contract. Please check approvals.';
+        if (err.message.includes("user rejected transaction")) {
+          errorMessage = "Transaction rejected by user";
+        } else if (err.message.includes("insufficient funds")) {
+          errorMessage = "Insufficient funds for gas";
+        } else if (err.message.includes("Invalid NFT Contract")) {
+          errorMessage = "Invalid NFT Contract. Please check approvals.";
+        } else if (err.message.includes("execution reverted")) {
+          errorMessage = "Transaction reverted. The NFT may already be listed or there could be contract permission issues.";
         } else {
           errorMessage = err.message;
         }
@@ -761,21 +1058,39 @@ const NFTDetailPage = () => {
     }
   };
 
+  // Handle UI interactions
+  const handleLike = () => {
+    setLiked(!liked);
+    setLikeCount(liked ? likeCount - 1 : likeCount + 1);
+    toast.success(liked ? "Removed from favorites" : "Added to favorites");
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success("Link copied to clipboard!");
+  };
+
+  // Marketplace functions
   const handleBuyNFT = async () => {
+    if (!currentNFT) {
+      toast.error("NFT data not available");
+      return;
+    }
+    
     // Either use currentOrder or create one from currentNFT if available
     if (!currentOrder && !(currentNFT.isListed && currentNFT.orderId)) {
-      toast.error('No active listing found for this NFT');
+      toast.error("No active listing found for this NFT");
       return;
     }
 
     // Get the orderId to use
     const orderId = currentOrder?.orderId || currentNFT.orderId;
     // Get the price to use
-    const priceWei = currentOrder?.pricePerNft || 
-      (currentNFT.price ? ethers.parseEther(currentNFT.price.replace(' CORE', '')) : '0');
+    const priceWei = currentOrder?.pricePerNFT || 
+      (currentNFT.price ? ethers.parseEther(currentNFT.price.replace(" CORE", "")) : "0");
 
-    if (!orderId || priceWei === '0') {
-      toast.error('Invalid listing information');
+    if (!orderId || priceWei === "0") {
+      toast.error("Invalid listing information");
       return;
     }
 
@@ -784,43 +1099,32 @@ const NFTDetailPage = () => {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
-      // Create marketplace contract instance
-      const marketplaceContract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
-        ['function buyNow(uint256 orderId, uint16 copies)'],
-        signer
-      );
-      
-      // Convert price to wei (already in wei format)
-      console.log(`Buying NFT with orderId ${orderId} for ${ethers.formatEther(priceWei)} CORE`);
-      
-      // Submit buy transaction
+      const marketplaceContract = new ethers.Contract(process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!, ["function buyNow(uint256 orderId, uint16 copies)"], signer);
+    
+      const formattedPrice = ethers.parseEther(priceWei.toString());
+      console.log("Formatted price:", formattedPrice);
       const tx = await marketplaceContract.buyNow(
         orderId,
         0, // ERC721 (copies = 0)
-        { value: priceWei }
+        { value: formattedPrice }
       );
       
-      toast.info('Purchase transaction submitted. Waiting for confirmation...');
-      
-      // Wait for transaction to be confirmed
+      toast.info("Purchase transaction submitted. Waiting for confirmation...");
       const receipt = await tx.wait();
-      console.log('Purchase transaction confirmed:', receipt);
-      
-      toast.success('NFT purchased successfully!');
-      
-      // Redirect to portfolio only after confirmation
-      router.push('/portfolio');
+      console.log("Purchase transaction confirmed:", receipt);
+      toast.success("NFT purchased successfully!");
+
+      router.push("/portfolio");
     } catch (err: any) {
-      console.error('Error buying NFT:', err);
+      console.error("Error buying NFT:", err);
       
       // Extract more specific error message if available
-      let errorMessage = 'Transaction failed';
+      let errorMessage = "Transaction failed";
       if (err.message) {
-        if (err.message.includes('user rejected transaction')) {
-          errorMessage = 'Transaction rejected by user';
-        } else if (err.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient funds for gas';
+        if (err.message.includes("user rejected transaction")) {
+          errorMessage = "Transaction rejected by user";
+        } else if (err.message.includes("insufficient funds")) {
+          errorMessage = "Insufficient funds for gas";
         } else {
           errorMessage = err.message;
         }
@@ -828,118 +1132,50 @@ const NFTDetailPage = () => {
       
       toast.error(errorMessage);
     } finally {
-      // Reset only the buy button's loading state
       setIsBuying(false);
     }
   };
 
-  const handleCancelListing = async () => {
-    // Check either for currentOrder or use the NFT's orderId if available
-    const orderId = currentOrder?.orderId || currentNFT?.orderId;
-    
-    if (!orderId) {
-      toast.error('No active listing found for this NFT');
-      return;
-    }
-
-    setIsCancelling(true);
-    try {
-      console.log(`Cancelling listing for NFT ${currentNFT.tokenId} with orderId ${orderId}`);
-      
-      // Get provider and signer
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      
-      // Create marketplace contract instance
-      const marketplaceContract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
-        ['function cancelOrder(uint256 orderId)'],
-        signer
-      );
-      
-      // Cancel the order
-      const tx = await marketplaceContract.cancelOrder(orderId);
-      
-      // Show pending message
-      toast.info('Cancellation transaction submitted. Waiting for confirmation...');
-      
-      // Wait for transaction to be confirmed
-      const receipt = await tx.wait();
-      
-      console.log('Cancellation transaction confirmed:', receipt);
-      toast.success('Listing cancelled successfully!');
-      
-      // Only redirect to portfolio after transaction is confirmed
-      router.push('/portfolio');
-    } catch (err: any) {
-      console.error('Error cancelling listing:', err);
-      
-      // Extract more specific error message if available
-      let errorMessage = 'Transaction failed';
-      if (err.message) {
-        if (err.message.includes('user rejected transaction')) {
-          errorMessage = 'Transaction rejected by user';
-        } else if (err.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient funds for gas';
-        } else {
-          errorMessage = err.message;
-        }
-      }
-      
-      toast.error(errorMessage);
-    } finally {
-      // Reset only the cancel button's loading state
-      setIsCancelling(false);
-    }
-  };
-
   // Handle accepting a bid
-  const handleAcceptBid = async (orderId: string, bidIndex: string | number) => {
+  const handleAcceptBid = async (orderId: string, bidId: string | number) => {
     console.log("Debug: Starting handleAcceptBid function");
-    if (!orderId || bidIndex === undefined) {
-      toast.error('Invalid bid information');
+    if (!orderId || bidId === undefined) {
+      toast.error("Invalid bid information");
       return;
     }
 
-    // Convert bidIndex to number if it's a string
-    const bidIndexNumber = typeof bidIndex === 'string' ? Number(bidIndex) : bidIndex;
+    // Convert bidId to number if it's a string
+    const bidIdNumber = typeof bidId === "string" ? Number(bidId) : bidId;
     
     // Set loading state for this specific bid
     setIsAcceptingBid(true);
-    setAcceptingBidId(`${orderId}-${bidIndexNumber}`);
+    setAcceptingBidId(`${orderId}-${bidIdNumber}`);
     
     try {
-      console.log(`Accepting bid ${bidIndexNumber} for order ${orderId}`);
+      console.log(`Accepting bid ${bidIdNumber} for order ${orderId}`);
       
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
       // Create marketplace contract instance
-      const marketplaceContract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
-        ['function acceptBid(uint256 orderId, uint256 bidId)'],
-        signer
-      );
+      const marketplaceContract = new ethers.Contract(process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!, ["function acceptBid(uint256 orderId, uint256 bidId)"], signer);
       
       // Convert orderId to number as well for consistency
       const orderIdNumber = Number(orderId);
       
       // Accept the bid
-      const tx = await marketplaceContract.acceptBid(
-        orderIdNumber,
-        bidIndexNumber
-      );
+      const tx = await marketplaceContract.acceptBid(orderIdNumber, bidIdNumber);
       
-      toast.info('Accept bid transaction submitted. Waiting for confirmation...');
+      toast.info("Accept bid transaction submitted. Waiting for confirmation...");
       
       // Wait for transaction to be confirmed
       const receipt = await tx.wait();
-      console.log('Accept bid transaction confirmed:', receipt);
+      console.log("Accept bid transaction confirmed:", receipt);
       
       // Set the NFT as sold immediately on the UI side to prevent further interaction
       setCurrentOrder(null);
       
-      toast.success('NFT has been transferred to the buyer. Transaction complete!');
+      toast.success("NFT has been transferred to the buyer. Transaction complete!");
       
       // After accepting a bid, the NFT is transferred and the listing should be removed
       // Refresh NFTs data first to ensure wallet state is updated
@@ -949,8 +1185,8 @@ const NFTDetailPage = () => {
       setTimeout(() => {
         // If this NFT was in the user's wallet and is now sold, redirect to portfolio
         if (isOwner) {
-          toast.info('Redirecting to your portfolio...');
-          router.push('/portfolio');
+          toast.info("Redirecting to your portfolio...");
+          router.push("/portfolio");
         } else {
           // If viewing someone else's NFT that was sold, just reload the page
           // to show the updated ownership information
@@ -958,8 +1194,8 @@ const NFTDetailPage = () => {
         }
       }, 1500);
     } catch (err: any) {
-      console.error('Error accepting bid:', err);
-      toast.error(err.message || 'Failed to accept bid');
+      console.error("Error accepting bid:", err);
+      toast.error(err.message || "Failed to accept bid");
     } finally {
       setIsAcceptingBid(false);
       setAcceptingBidId(null);
@@ -967,32 +1203,28 @@ const NFTDetailPage = () => {
   };
 
   // Handle withdrawing a bid (cancel offer)
-  const handleWithdrawBid = async (orderId: string, bidIndex: string | number) => {
+  const handleWithdrawBid = async (orderId: string, bidId: string | number) => {
     console.log("Debug: Starting handleWithdrawBid function");
-    if (!orderId || bidIndex === undefined) {
-      toast.error('Invalid bid information');
+    if (!orderId || bidId === undefined) {
+      toast.error("Invalid bid information");
       return;
     }
 
-    // Convert bidIndex to number if it's a string
-    const bidIndexNumber = typeof bidIndex === 'string' ? Number(bidIndex) : bidIndex;
+    // Convert bidId to number if it's a string
+    const bidIdNumber = typeof bidId === "string" ? Number(bidId) : bidId;
     
     // Set loading state for this specific bid
     setIsWithdrawingBid(true);
-    setWithdrawingBidId(`${orderId}-${bidIndexNumber}`);
+    setWithdrawingBidId(`${orderId}-${bidIdNumber}`);
     
     try {
-      console.log(`Withdrawing bid ${bidIndexNumber} for order ${orderId}`);
+      console.log(`Withdrawing bid ${bidIdNumber} for order ${orderId}`);
       
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
       // Create marketplace contract instance
-      const marketplaceContract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
-        ['function withdrawRejectBid(uint256 orderId, uint256 bidId, bool isReject)'],
-        signer
-      );
+      const marketplaceContract = new ethers.Contract(process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!, ["function withdrawRejectBid(uint256 orderId, uint256 bidId, bool isReject)"], signer);
       
       // Convert orderId to number as well for consistency
       const orderIdNumber = Number(orderId);
@@ -1000,22 +1232,20 @@ const NFTDetailPage = () => {
       // Withdraw bid (false means it's not a rejection by seller, but a withdrawal by bidder)
       const tx = await marketplaceContract.withdrawRejectBid(
         orderIdNumber,
-        bidIndexNumber,
+        bidIdNumber,
         false // isReject = false for withdraw by bidder
       );
       
-      toast.info('Withdraw bid transaction submitted. Waiting for confirmation...');
+      toast.info("Withdraw bid transaction submitted. Waiting for confirmation...");
       
       // Wait for transaction to be confirmed
       const receipt = await tx.wait();
-      console.log('Withdraw bid transaction confirmed:', receipt);
+      console.log("Withdraw bid transaction confirmed:", receipt);
       
-      toast.success('Bid withdrawn successfully!');
+      toast.success("Bid withdrawn successfully!");
       
       // Immediately filter out the withdrawn bid from the UI
-      const updatedBids = bids.filter(
-        bid => !(bid.orderId === orderId && Number(bid.bidIndex) === bidIndexNumber)
-      );
+      const updatedBids = bids.filter((bid) => !(bid.orderId === orderId && Number(bid.bidId) === bidIdNumber));
       setBids(updatedBids);
       
       // Then refresh from server after a delay to ensure indexer has updated
@@ -1023,8 +1253,8 @@ const NFTDetailPage = () => {
         fetchBids(orderId);
       }, 3000);
     } catch (err: any) {
-      console.error('Error withdrawing bid:', err);
-      toast.error(err.message || 'Failed to withdraw bid');
+      console.error("Error withdrawing bid:", err);
+      toast.error(err.message || "Failed to withdraw bid");
     } finally {
       setIsWithdrawingBid(false);
       setWithdrawingBidId(null);
@@ -1032,32 +1262,28 @@ const NFTDetailPage = () => {
   };
 
   // Handle rejecting a bid (seller rejects an offer)
-  const handleRejectBid = async (orderId: string, bidIndex: string | number) => {
+  const handleRejectBid = async (orderId: string, bidId: string | number) => {
     console.log("Debug: Starting handleRejectBid function");
-    if (!orderId || bidIndex === undefined) {
-      toast.error('Invalid bid information');
+    if (!orderId || bidId === undefined) {
+      toast.error("Invalid bid information");
       return;
     }
 
-    // Convert bidIndex to number if it's a string
-    const bidIndexNumber = typeof bidIndex === 'string' ? Number(bidIndex) : bidIndex;
+    // Convert bidId to number if it's a string
+    const bidIdNumber = typeof bidId === "string" ? Number(bidId) : bidId;
     
     // Set loading state for this specific bid
     setIsRejectingBid(true);
-    setRejectingBidId(`${orderId}-${bidIndexNumber}`);
+    setRejectingBidId(`${orderId}-${bidIdNumber}`);
     
     try {
-      console.log(`Rejecting bid ${bidIndexNumber} for order ${orderId}`);
+      console.log(`Rejecting bid ${bidIdNumber} for order ${orderId}`);
       
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       
       // Create marketplace contract instance
-      const marketplaceContract = new ethers.Contract(
-        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
-        ['function withdrawRejectBid(uint256 orderId, uint256 bidId, bool isReject)'],
-        signer
-      );
+      const marketplaceContract = new ethers.Contract(process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!, ["function withdrawRejectBid(uint256 orderId, uint256 bidId, bool isReject)"], signer);
       
       // Convert orderId to number as well for consistency
       const orderIdNumber = Number(orderId);
@@ -1065,21 +1291,21 @@ const NFTDetailPage = () => {
       // Reject bid (true means it's a rejection by seller)
       const tx = await marketplaceContract.withdrawRejectBid(
         orderIdNumber,
-        bidIndexNumber,
+        bidIdNumber,
         true // isReject = true for rejection by seller
       );
       
-      toast.info('Reject bid transaction submitted. Waiting for confirmation...');
+      toast.info("Reject bid transaction submitted. Waiting for confirmation...");
       
       // Wait for transaction to be confirmed
       const receipt = await tx.wait();
-      console.log('Reject bid transaction confirmed:', receipt);
+      console.log("Reject bid transaction confirmed:", receipt);
       
-      toast.success('Bid rejected successfully!');
+      toast.success("Bid rejected successfully!");
       
       // Update the bid in the UI to mark it as rejected
-      const updatedBids = bids.map(bid => {
-        if (bid.orderId === orderId && Number(bid.bidIndex) === bidIndexNumber) {
+      const updatedBids = bids.map((bid) => {
+        if (bid.orderId === orderId && Number(bid.bidId) === bidIdNumber) {
           return { ...bid, isRejected: true };
         }
         return bid;
@@ -1091,8 +1317,8 @@ const NFTDetailPage = () => {
         fetchBids(orderId);
       }, 3000);
     } catch (err: any) {
-      console.error('Error rejecting bid:', err);
-      toast.error(err.message || 'Failed to reject bid');
+      console.error("Error rejecting bid:", err);
+      toast.error(err.message || "Failed to reject bid");
     } finally {
       setIsRejectingBid(false);
       setRejectingBidId(null);
@@ -1122,7 +1348,7 @@ const NFTDetailPage = () => {
     if (bids.length > 0) {
       console.log("First bid details:", {
         bidder: bids[0]?.bidder,
-        pricePerNft: bids[0]?.pricePerNft,
+        pricePerNFT: bids[0]?.pricePerNFT,
         endTime: bids[0]?.endTime,
         orderId: bids[0]?.orderId
       });
@@ -1132,9 +1358,14 @@ const NFTDetailPage = () => {
   const handleMakeOffer = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
+    if (!currentNFT) {
+      toast.error("NFT data not available");
+      return;
+    }
+    
     // Either use currentOrder or create one from currentNFT if available
     if (!currentOrder && !(currentNFT.isListed && currentNFT.orderId)) {
-      toast.error('No active listing found for this NFT');
+      toast.error("No active listing found for this NFT");
       return;
     }
 
@@ -1142,12 +1373,12 @@ const NFTDetailPage = () => {
     const orderId = currentOrder?.orderId || currentNFT.orderId;
 
     if (!orderId) {
-      toast.error('Invalid listing information');
+      toast.error("Invalid listing information");
       return;
     }
 
     if (!offerPrice || parseFloat(offerPrice) <= 0) {
-      toast.error('Please enter a valid offer price');
+      toast.error("Please enter a valid offer price");
       return;
     }
 
@@ -1161,7 +1392,7 @@ const NFTDetailPage = () => {
       // Create marketplace contract instance
       const marketplaceContract = new ethers.Contract(
         process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
-        ['function placeOfferForOrder(uint256 orderId, uint16 copies, uint256 pricePerNFT, uint256 endTime)'],
+        ["function placeOfferForOrder(uint256 orderId, uint16 copies, uint256 pricePerNFT, uint256 endTime)"],
         signer
       );
       
@@ -1169,7 +1400,7 @@ const NFTDetailPage = () => {
       const priceInWei = ethers.parseEther(offerPrice);
       
       // Calculate end time (current time + X days in seconds)
-      const endTime = Math.floor(Date.now() / 1000) + (Number(offerDuration) * 24 * 60 * 60);
+      const endTime = Math.floor(Date.now() / 1000) + Number(offerDuration) * 24 * 60 * 60;
       
       // Submit offer transaction
       const tx = await marketplaceContract.placeOfferForOrder(
@@ -1180,13 +1411,13 @@ const NFTDetailPage = () => {
         { value: priceInWei }
       );
       
-      toast.info('Offer transaction submitted. Waiting for confirmation...');
+      toast.info("Offer transaction submitted. Waiting for confirmation...");
       
       // Wait for transaction to be confirmed
       const receipt = await tx.wait();
-      console.log('Offer transaction confirmed:', receipt);
+      console.log("Offer transaction confirmed:", receipt);
       
-      toast.success('Offer placed successfully!');
+      toast.success("Offer placed successfully!");
       setShowOfferForm(false);
       
       // Wait a bit longer (5s) to make sure indexer has time to update
@@ -1198,17 +1429,16 @@ const NFTDetailPage = () => {
           console.error("Error refreshing bids after offer:", refreshErr);
         }
       }, 5000);
-      
     } catch (err: any) {
-      console.error('Error making offer:', err);
-      let errorMessage = 'Transaction failed';
+      console.error("Error making offer:", err);
+      let errorMessage = "Transaction failed";
       
       // Extract more specific error message if available
       if (err.message) {
-        if (err.message.includes('user rejected transaction')) {
-          errorMessage = 'Transaction rejected by user';
-        } else if (err.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient funds for gas';
+        if (err.message.includes("user rejected transaction")) {
+          errorMessage = "Transaction rejected by user";
+        } else if (err.message.includes("insufficient funds")) {
+          errorMessage = "Insufficient funds for gas";
         } else {
           errorMessage = err.message;
         }
@@ -1221,50 +1451,140 @@ const NFTDetailPage = () => {
     }
   };
 
-  // Add an effect to check for NFT updates and handle the case where an NFT view is outdated
   useEffect(() => {
-    // Only run this effect when NFTs and orders are loaded
-    if (nftsLoading || ordersLoading || !id || !address) return;
+    // Handle the router query `action` parameter
+    setLoading(true);
     
-    // If we have the NFT in state but it doesn't match our address, verify it's still up to date
-    if (currentNFT && currentOrder) {
-      // Check if there's been a bid acceptance for this order
-      checkNftSoldStatus(id as string, currentOrder.orderId).then(status => {
-        if (status.sold) {
-          console.log("IMPORTANT: The current NFT has been sold but UI is not updated!");
-          // Force immediate UI update
-          setCurrentOrder(null);
-          if (isOwner) {
-            toast.info("This NFT was sold. The listing is now removed.");
-          } else {
-            toast.info("This NFT was recently purchased by someone else.");
-          }
-          
-          // Check if current user is the new owner
-          if (window.ethereum) {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const contractPromise = new ethers.Contract(
-              process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS!,
-              ['function ownerOf(uint256 tokenId) view returns (address)'],
-              provider
-            );
-            
-            contractPromise.then((contract: ethers.Contract) => {
-              contract.ownerOf(id).then((ownerAddress: string) => {
-                if (ownerAddress.toLowerCase() === address.toLowerCase()) {
-                  // The current user is the new owner!
-                  toast.success("You are the new owner of this NFT!");
-                  setIsOwner(true);
-                  // Refresh NFTs to update the UI
-                  refreshNFTs();
-                }
-              }).catch((err: Error) => console.error("Error checking ownership:", err));
-            }).catch((err: Error) => console.error("Error creating contract:", err));
-          }
-        }
-      });
+    // Check if we have a query param for action
+    const { action } = router.query;
+    if (action) {
+      console.log("Action from query:", action);
+      
+      if (action === "manage") {
+        setManagingMode(true);
+      } else if (action === "list") {
+        setListingMode(true);
+      } else if (action === "buy") {
+        setBuyingMode(true);
+      }
     }
-  }, [id, currentNFT, currentOrder, nftsLoading, ordersLoading, address, refreshNFTs]);
+    
+    setLoading(false);
+  }, [router.query]);
+  
+  // Fix the handleCancelListing function to correctly handle contract interaction
+  const handleCancelListing = async () => {
+    // Check either for currentOrder or use the NFT's orderId if available
+    const orderId = currentOrder?.orderId || (currentNFT ? currentNFT.orderId : undefined);
+    const tokenId = currentNFT?.tokenId || "unknown";
+
+    if (!orderId) {
+      toast.error("No active listing found for this NFT");
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      console.log(`Cancelling listing for NFT ${tokenId} with orderId ${orderId}`);
+
+      // Get provider and signer
+            const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      
+      // Log connected wallet address for debugging
+      const connectedAddress = await signer.getAddress();
+      console.log(`Connected wallet address: ${connectedAddress}`);
+
+      // Create marketplace contract instance
+      const marketplaceContract = new ethers.Contract(
+        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS!,
+        [
+          "function cancelOrder(uint256 orderId)",
+          "function order(uint256 orderId) view returns (uint256 tokenId, uint256 pricePerNFT, uint16 copies, address seller, uint256 startTime, uint256 endTime, address paymentToken, address nftContract)"
+        ],
+        signer
+      );
+      
+      // Parse orderId to a number if it's in hex format
+      let orderIdToCancel: number;
+      if (typeof orderId === 'string' && orderId.startsWith('0x')) {
+        // Convert from hex to decimal
+        orderIdToCancel = parseInt(orderId, 16);
+        console.log(`Converting hex orderId ${orderId} to decimal: ${orderIdToCancel}`);
+      } else {
+        // Convert from string/other format to number
+        orderIdToCancel = Number(orderId);
+      }
+      
+      // First verify if the order exists and if we're the seller
+      try {
+        const orderDetails = await marketplaceContract.order(orderIdToCancel);
+        console.log("Order details from contract:", orderDetails);
+        
+        // Check if the order exists (has a non-zero seller)
+        if (orderDetails.seller === ethers.ZeroAddress) {
+          console.log("Order not found in contract, might be already cancelled");
+          toast.info("This NFT is not currently listed. Refreshing state...");
+          
+          // Update UI state and redirect to portfolio
+          setCurrentOrder(null);
+                  refreshNFTs();
+          router.push("/portfolio");
+          return;
+        }
+        
+        // Check if connected wallet is the seller
+        if (connectedAddress.toLowerCase() !== orderDetails.seller.toLowerCase()) {
+          toast.error("Only the seller can cancel this listing");
+          return;
+        }
+      } catch (err) {
+        console.log("Error fetching order details, will try cancelling anyway:", err);
+      }
+      
+      console.log(`Sending cancelOrder with orderId: ${orderIdToCancel}`);
+
+      // Cancel the order
+      const tx = await marketplaceContract.cancelOrder(orderIdToCancel);
+
+      // Show pending message
+      toast.info("Cancellation transaction submitted. Waiting for confirmation...");
+
+      // Wait for transaction to be confirmed
+      const receipt = await tx.wait();
+
+      console.log("Cancellation transaction confirmed:", receipt);
+      toast.success("Listing cancelled successfully!");
+      
+      // Update local state before redirecting
+      setCurrentOrder(null);
+      await refreshNFTs();
+
+      // Only redirect to portfolio after transaction is confirmed
+      router.push("/portfolio");
+    } catch (err: any) {
+      console.error("Error cancelling listing:", err);
+
+      // Extract more specific error message if available
+      let errorMessage = "Transaction failed";
+      if (err.message) {
+        if (err.message.includes("user rejected transaction")) {
+          errorMessage = "Transaction rejected by user";
+        } else if (err.message.includes("insufficient funds")) {
+          errorMessage = "Insufficient funds for gas";
+        } else if (err.message.includes("Invalid request")) {
+          errorMessage = "Only the seller can cancel this listing, or the listing may no longer exist";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+
+      toast.error(errorMessage);
+    } finally {
+      // Reset only the cancel button's loading state
+      setIsCancelling(false);
+    }
+  };
 
   if (loading || nftsLoading || ordersLoading) {
   return (
@@ -1284,13 +1604,8 @@ const NFTDetailPage = () => {
         <div className="flex flex-col justify-center items-center h-96 text-center p-4">
           <h1 className="text-2xl font-bold text-purple-500 mb-4">Wallet Not Connected</h1>
           <p className="text-gray-300">You need to connect your wallet to view NFT details.</p>
-          <p className="mt-2 text-gray-400">
-            Connecting your wallet allows us to verify ownership and display the correct information for this NFT.
-          </p>
-          <button 
-            className="mt-6 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-            onClick={() => router.push('/')}
-          >
+          <p className="mt-2 text-gray-400">Connecting your wallet allows us to verify ownership and display the correct information for this NFT.</p>
+          <button className="mt-6 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700" onClick={() => router.push("/")}>
             Return to Home
           </button>
         </div>
@@ -1303,21 +1618,14 @@ const NFTDetailPage = () => {
       <Layout>
         <div className="flex flex-col justify-center items-center h-96 text-center p-4">
           <h1 className="text-2xl font-bold text-red-500 mb-4">Error</h1>
-          <p className="text-gray-300">{error || 'NFT not found'}</p>
-          {error && error.includes('connect your wallet') ? (
-            <p className="mt-2 text-gray-400">
-              You need to connect your wallet to view NFT details. This allows us to verify ownership and display the correct information.
-            </p>
+          <p className="text-gray-300">{error || "NFT not found"}</p>
+          {error && error.includes("connect your wallet") ? (
+            <p className="mt-2 text-gray-400">You need to connect your wallet to view NFT details. This allows us to verify ownership and display the correct information.</p>
           ) : null}
           <button 
             className="mt-6 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-            onClick={() => error && error.includes('connect your wallet') ? 
-              router.push('/') : router.push('/portfolio')
-            }
-          >
-            {error && error.includes('connect your wallet') ? 
-              'Return to Home' : 'Return to Portfolio'
-            }
+            onClick={() => (error && error.includes("connect your wallet") ? router.push("/") : router.push("/portfolio"))}>
+            {error && error.includes("connect your wallet") ? "Return to Home" : "Return to Portfolio"}
           </button>
         </div>
       </Layout>
@@ -1332,36 +1640,28 @@ const NFTDetailPage = () => {
           <div className="bg-gray-800/70 rounded-xl overflow-hidden shadow-2xl p-4 border border-gray-700/50 backdrop-blur-sm hover:shadow-purple-500/10 transition-all duration-500">
             <div className="relative aspect-square rounded-xl overflow-hidden ring-2 ring-gray-700/50 shadow-inner">
                 <Image
-                src={currentNFT.image || '/placeholder-nft.jpg'}
-                alt={currentNFT.name || 'NFT Image'}
+                src={currentNFT.image || "/placeholder-nft.jpg"}
+                alt={currentNFT.name || "NFT Image"}
                 fill
                 className="object-cover hover:scale-105 transition-transform duration-700"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src = '/placeholder-nft.jpg';
+                  target.src = "/placeholder-nft.jpg";
                 }}
                 priority
               />
               <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent opacity-60" />
               
               {/* Show SOLD badge if NFT is sold */}
-              {isSold && (
-                <div className="absolute top-3 right-3 bg-red-600 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-lg transform rotate-12 z-30">
-                  SOLD
-              </div>
-              )}
+              {isSold && <div className="absolute top-3 right-3 bg-red-600 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-lg transform rotate-12 z-30">SOLD</div>}
               
               {/* Display action badge based on query parameter */}
               {router.query.action && (
-                <div className={`absolute top-3 left-3 
-                  ${router.query.action === 'manage' ? 'bg-blue-500/90' : 
-                    router.query.action === 'buy' ? 'bg-green-500/90' : 
-                    router.query.action === 'list' ? 'bg-purple-500/90' : 'bg-gray-500/90'} 
+                <div
+                  className={`absolute top-3 left-3 
+                  ${router.query.action === "manage" ? "bg-blue-500/90" : router.query.action === "buy" ? "bg-green-500/90" : router.query.action === "list" ? "bg-purple-500/90" : "bg-gray-500/90"} 
                   backdrop-blur-sm text-white px-4 py-1.5 rounded-full text-sm font-semibold`}>
-                  {router.query.action === 'manage' ? 'Manage Listing' : 
-                   router.query.action === 'buy' ? 'Purchase NFT' : 
-                   router.query.action === 'list' ? 'List NFT' : 
-                   'View NFT'}
+                  {router.query.action === "manage" ? "Manage Listing" : router.query.action === "buy" ? "Purchase NFT" : router.query.action === "list" ? "List NFT" : "View NFT"}
                 </div>
               )}
             </div>
@@ -1370,22 +1670,12 @@ const NFTDetailPage = () => {
           {/* NFT Details */}
           <div className="bg-gray-800/70 rounded-xl shadow-2xl p-6 border border-gray-700/50 backdrop-blur-sm">
             <div className="flex justify-between items-start mb-6">
-              <h1 className="text-3xl font-bold text-white bg-gradient-to-r from-purple-400 to-purple-200 text-transparent bg-clip-text">
-                {currentNFT.name || `Ordinal #${currentNFT.tokenId}`}
-              </h1>
+              <h1 className="text-3xl font-bold text-white bg-gradient-to-r from-purple-400 to-purple-200 text-transparent bg-clip-text">{currentNFT.name || `Ordinal #${currentNFT.tokenId}`}</h1>
               <div className="flex space-x-3">
-                <button 
-                  onClick={handleLike}
-                  className={`p-2 rounded-full ${liked ? 'bg-red-500' : 'bg-gray-700'} hover:bg-red-600 transition-colors shadow-md`}
-                  aria-label="Like NFT"
-                >
+                <button onClick={handleLike} className={`p-2 rounded-full ${liked ? "bg-red-500" : "bg-gray-700"} hover:bg-red-600 transition-colors shadow-md`} aria-label="Like NFT">
                   <FaHeart className="text-white" />
                 </button>
-                <button 
-                  onClick={handleShare}
-                  className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors shadow-md"
-                  aria-label="Share NFT"
-                >
+                <button onClick={handleShare} className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors shadow-md" aria-label="Share NFT">
                   <FaShareAlt className="text-white" />
                 </button>
               </div>
@@ -1394,9 +1684,7 @@ const NFTDetailPage = () => {
             {/* Owner and Creator */}
             <div className="mb-6">
               <p className="text-gray-400">Owned by</p>
-              <p className="text-white font-medium">
-                {isOwner ? 'You' : (currentNFT.seller || currentOrder?.seller || 'Unknown')}
-              </p>
+              <p className="text-white font-medium">{isOwner ? "You" : currentNFT.seller || currentOrder?.seller || "Unknown"}</p>
               </div>
 
             {/* Price and action buttons */}
@@ -1408,7 +1696,7 @@ const NFTDetailPage = () => {
                     <FaEthereum className="text-purple-500 text-xl mr-2" />
                     <span className="text-2xl font-bold text-white">
                       {currentOrder 
-                        ? ethers.formatEther(currentOrder.pricePerNft || '0') 
+                        ? safeFormatEther(currentOrder.pricePerNFT)
                         : currentNFT.price?.replace(' CORE', '') || '0'} CORE
                     </span>
                 </div>
@@ -1423,38 +1711,33 @@ const NFTDetailPage = () => {
               )}
 
               {/* Add this near the price display */}
-              {isSold && (
-                <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg transform rotate-12 animate-pulse">
-                  SOLD
-                </div>
-              )}
+              {isSold && <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg transform rotate-12 animate-pulse">SOLD</div>}
 
               {/* Action buttons */}
               <div className="mt-6 flex flex-col space-y-3">
-                {isOwner ? (
-                  // Owner actions
-                  currentOrder || currentNFT.isListed ? (
-                    !isSold && (
+                {isOwner
+                  ? // Owner actions
+                    currentOrder || currentNFT.isListed
+                    ? !isSold && (
                       <button
                         onClick={handleCancelListing}
                         disabled={isCancelling}
-                        className="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg transition-colors shadow-md disabled:opacity-50"
-                      >
+                          className="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg transition-colors shadow-md disabled:opacity-50">
                         {isCancelling ? (
                           <span className="flex items-center justify-center">
                             <FaSpinner className="animate-spin mr-2" /> Cancelling...
                           </span>
-                        ) : 'Cancel Listing'}
+                          ) : (
+                            "Cancel Listing"
+                          )}
                 </button>
                     )
-                  ) : (
-                    !isSold && (
+                    : !isSold && (
                       <>
                         <button
                           onClick={() => setShowListingForm(!showListingForm)}
-                          className={`w-full py-3 ${showListingForm ? 'bg-gray-700' : 'bg-purple-500 hover:bg-purple-600'} text-white font-bold rounded-lg transition-all duration-300`}
-                        >
-                          {showListingForm ? 'Cancel' : 'List for sale'}
+                            className={`w-full py-3 ${showListingForm ? "bg-gray-700" : "bg-purple-500 hover:bg-purple-600"} text-white font-bold rounded-lg transition-all duration-300`}>
+                            {showListingForm ? "Cancel" : "List for sale"}
                         </button>
                         
                         {showListingForm && (
@@ -1471,50 +1754,46 @@ const NFTDetailPage = () => {
                                   className="flex-1 py-2 px-3 bg-gray-800 text-white rounded-lg outline-none border border-gray-700 focus:border-purple-500 transition-colors"
                                   placeholder="Enter price in CORE"
                                   style={{
-                                    WebkitAppearance: 'none',
-                                    MozAppearance: 'textfield',
-                                    appearance: 'textfield',
-                                    margin: 0
+                                      WebkitAppearance: "none",
+                                      MozAppearance: "textfield",
+                                      appearance: "textfield",
+                                      margin: 0,
                                   }}
                                 />
                                 <button
                                   onClick={handleListNFT}
                                   disabled={isListing || !listingPrice}
-                                  className="px-5 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg disabled:opacity-50 transition-colors"
-                                >
-                                  {isListing ? <FaSpinner className="animate-spin" /> : 'List'}
+                                    className="px-5 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg disabled:opacity-50 transition-colors">
+                                    {isListing ? <FaSpinner className="animate-spin" /> : "List"}
                 </button>
               </div>
                             </div>
-                            <p className="text-xs text-gray-400">
-                              Setting a price will list your NFT for sale on the marketplace.
-                            </p>
+                              <p className="text-xs text-gray-400">Setting a price will list your NFT for sale on the marketplace.</p>
                           </div>
                         )}
                       </>
                     )
-                  )
-                ) : (
-                  // Non-owner actions
-                  !isSold && (currentOrder || (currentNFT.isListed && currentNFT.price)) && (
+                  : // Non-owner actions
+                    !isSold &&
+                    (currentOrder || (currentNFT.isListed && currentNFT.price)) && (
                     <>
                       <button
                         onClick={handleBuyNFT}
                         disabled={isBuying}
-                        className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white font-bold rounded-lg transition-all duration-300 shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
+                          className="w-full py-3 bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white font-bold rounded-lg transition-all duration-300 shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed">
                         {isBuying ? (
                           <span className="flex items-center justify-center">
                             <FaSpinner className="animate-spin mr-2" /> Buying...
                           </span>
-                        ) : 'Buy Now'}
+                          ) : (
+                            "Buy Now"
+                          )}
                       </button>
                       
                       <button
                         onClick={() => setShowOfferForm(!showOfferForm)}
-                        className={`w-full py-3 ${showOfferForm ? 'bg-gray-700' : 'bg-gray-700 hover:bg-gray-600'} text-white font-bold rounded-lg transition-colors`}
-                      >
-                        {showOfferForm ? 'Cancel' : 'Make Offer'}
+                          className={`w-full py-3 ${showOfferForm ? "bg-gray-700" : "bg-gray-700 hover:bg-gray-600"} text-white font-bold rounded-lg transition-colors`}>
+                          {showOfferForm ? "Cancel" : "Make Offer"}
                       </button>
                       
                       {showOfferForm && (
@@ -1531,10 +1810,10 @@ const NFTDetailPage = () => {
                                 className="flex-1 py-2 px-3 bg-gray-800 text-white rounded-lg outline-none border border-gray-700 focus:border-purple-500 transition-colors"
                                 placeholder="Enter your offer in CORE"
                                 style={{
-                                  WebkitAppearance: 'none',
-                                  MozAppearance: 'textfield',
-                                  appearance: 'textfield',
-                                  margin: 0
+                                    WebkitAppearance: "none",
+                                    MozAppearance: "textfield",
+                                    appearance: "textfield",
+                                    margin: 0,
                                 }}
                               />
                             </div>
@@ -1545,8 +1824,7 @@ const NFTDetailPage = () => {
                             <select
                               value={offerDuration}
                               onChange={(e) => setOfferDuration(e.target.value)}
-                              className="w-full py-2 px-3 bg-gray-800 text-white rounded-lg outline-none border border-gray-700 focus:border-purple-500 transition-colors"
-                            >
+                                className="w-full py-2 px-3 bg-gray-800 text-white rounded-lg outline-none border border-gray-700 focus:border-purple-500 transition-colors">
                               <option value="1">1 day</option>
                               <option value="3">3 days</option>
                               <option value="7">7 days</option>
@@ -1558,29 +1836,21 @@ const NFTDetailPage = () => {
                           <button
                             onClick={handleMakeOffer}
                             disabled={isMakingOffer || !offerPrice}
-                            className="w-full mt-3 px-5 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg disabled:opacity-50 transition-colors"
-                          >
-                            {isMakingOffer ? <FaSpinner className="animate-spin mx-auto" /> : 'Confirm Offer'}
+                              className="w-full mt-3 px-5 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg disabled:opacity-50 transition-colors">
+                              {isMakingOffer ? <FaSpinner className="animate-spin mx-auto" /> : "Confirm Offer"}
                           </button>
                           
-                          <p className="text-xs text-gray-400 mt-2">
-                            Your offer will be sent to the NFT owner for consideration.
-                          </p>
+                            <p className="text-xs text-gray-400 mt-2">Your offer will be sent to the NFT owner for consideration.</p>
                         </div>
                       )}
                     </>
-                  )
                 )}
                 
                 {/* Show a sold message when NFT is sold */}
                 {isSold && (
                   <div className="mt-4 p-4 bg-gray-800/80 rounded-lg border border-red-500/30">
-                    <p className="text-center text-white">
-                      This NFT has been sold and is no longer available for purchase.
-                    </p>
-                    <p className="text-center text-gray-400 text-sm mt-2">
-                      The NFT has been transferred to the buyer&apos;s wallet.
-                    </p>
+                    <p className="text-center text-white">This NFT has been sold and is no longer available for purchase.</p>
+                    <p className="text-center text-gray-400 text-sm mt-2">The NFT has been transferred to the buyer&apos;s wallet.</p>
                   </div>
                 )}
               </div>
@@ -1635,36 +1905,29 @@ const NFTDetailPage = () => {
                     {currentNFT.metadata.genesisTimestamp && (
                       <div>
                         <p className="text-gray-400 text-sm">Genesis Date</p>
-                        <p className="text-white font-medium">
-                          {new Date(currentNFT.metadata.genesisTimestamp * 1000).toLocaleDateString()}
-                        </p>
+                        <p className="text-white font-medium">{new Date(currentNFT.metadata.genesisTimestamp * 1000).toLocaleDateString()}</p>
                       </div>
                     )}
                     {currentNFT.metadata.bridgeTimestamp && (
                       <div>
                         <p className="text-gray-400 text-sm">Bridge Date</p>
-                        <p className="text-white font-medium">
-                          {new Date(currentNFT.metadata.bridgeTimestamp * 1000).toLocaleDateString()}
-                        </p>
+                        <p className="text-white font-medium">{new Date(currentNFT.metadata.bridgeTimestamp * 1000).toLocaleDateString()}</p>
                       </div>
                     )}
               </div>
 
-                  {currentNFT.metadata.inscriptionId && currentNFT.metadata.inscriptionId !== 'Unknown' && (
+                  {currentNFT.metadata.inscriptionId && currentNFT.metadata.inscriptionId !== "Unknown" && (
                 <a 
                       href={`https://ordinals.com/inscription/${currentNFT.metadata.inscriptionId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                      className="inline-block mt-4 text-purple-400 hover:text-purple-300 font-medium"
-                >
+                      className="inline-block mt-4 text-purple-400 hover:text-purple-300 font-medium">
                       View on Ordinals Explorer →
                 </a>
                   )}
               </div>
               ) : (
-                <p className="text-gray-300">
-                  No metadata available for this NFT.
-                </p>
+                <p className="text-gray-300">No metadata available for this NFT.</p>
               )}
             </div>
 
@@ -1674,11 +1937,7 @@ const NFTDetailPage = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-core-primary to-core-secondary">
                     Offers
-                    {bids.length > 0 && (
-                      <span className="ml-2 text-sm px-2 py-0.5 bg-purple-900/50 text-purple-300 rounded-full">
-                        {bids.length}
-                      </span>
-                    )}
+                    {bids.length > 0 && <span className="ml-2 text-sm px-2 py-0.5 bg-purple-900/50 text-purple-300 rounded-full">{bids.length}</span>}
                   </h2>
                   {isOwner && bids.length > 0 && (
                     <div className="text-sm text-gray-400">
@@ -1704,9 +1963,9 @@ const NFTDetailPage = () => {
                       const timeLeft = endTime - now;
                       
                       // Format time remaining
-                      let timeDisplay = '';
+                      let timeDisplay = "";
                       if (timeLeft <= 0) {
-                        timeDisplay = 'Expired';
+                        timeDisplay = "Expired";
                       } else if (timeLeft < 3600) {
                         timeDisplay = `${Math.floor(timeLeft / 60)} minutes left`;
                       } else if (timeLeft < 86400) {
@@ -1719,21 +1978,15 @@ const NFTDetailPage = () => {
                       const isUserBidder = address?.toLowerCase() === bid.bidder?.toLowerCase();
                       
                       return (
-                        <div key={`${bid.orderId}-${bid.bidIndex}`} className="p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-purple-600/50 transition-all hover:shadow-md shadow-purple-600/10">
+                        <div
+                          key={`${bid.orderId}-${bid.bidId}`}
+                          className="p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-purple-600/50 transition-all hover:shadow-md shadow-purple-600/10">
                           <div className="flex justify-between items-center mb-2">
                             <div className="flex items-center">
                               <FaUserCircle className="text-gray-400 mr-2" />
                               <span className="text-gray-300">{shortenAddress(bid.bidder)}</span>
-                              {isUserBidder && (
-                                <span className="ml-2 px-2 py-0.5 bg-purple-900/50 text-purple-300 text-xs rounded-full">
-                                  You
-                                </span>
-                              )}
-                              {bid.isRejected && (
-                                <span className="ml-2 px-2 py-0.5 bg-red-900/50 text-red-300 text-xs rounded-full">
-                                  Rejected
-                                </span>
-                              )}
+                              {isUserBidder && <span className="ml-2 px-2 py-0.5 bg-purple-900/50 text-purple-300 text-xs rounded-full">You</span>}
+                              {bid.isRejected && <span className="ml-2 px-2 py-0.5 bg-red-900/50 text-red-300 text-xs rounded-full">Rejected</span>}
                             </div>
                             <div className="text-gray-300 flex items-center">
                               <FaClock className="mr-1 text-xs" />
@@ -1745,21 +1998,19 @@ const NFTDetailPage = () => {
                           <div className="flex justify-between items-center">
                             <div className="flex items-center">
                               <FaEthereum className="text-purple-500 mr-1" />
-                              <span className="text-white font-medium">
-                                {formatEther(bid.pricePerNft)} CORE
-                              </span>
+                              <span className="text-white font-medium">{safeFormatEther(bid.pricePerNFT)} CORE</span>
                             </div>
                             
                             {/* Show Accept/Reject buttons to owner if not rejected */}
                             {isOwner && !bid.isRejected ? (
                               <div className="flex space-x-2">
                                 <button
-                                  onClick={() => handleAcceptBid(bid.orderId, bid.bidIndex)}
-                                  disabled={isAcceptingBid && acceptingBidId === `${bid.orderId}-${bid.bidIndex}`}
-                                  className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white text-sm font-bold rounded-lg shadow-sm hover:shadow-green-500/20 transition-all duration-200 disabled:opacity-50 flex items-center"
-                                >
-                                  {isAcceptingBid && acceptingBidId === `${bid.orderId}-${bid.bidIndex}` ? 
-                                    <FaSpinner className="animate-spin" /> : (
+                                  onClick={() => handleAcceptBid(bid.orderId, bid.bidId)}
+                                  disabled={isAcceptingBid && acceptingBidId === `${bid.orderId}-${bid.bidId}`}
+                                  className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white text-sm font-bold rounded-lg shadow-sm hover:shadow-green-500/20 transition-all duration-200 disabled:opacity-50 flex items-center">
+                                  {isAcceptingBid && acceptingBidId === `${bid.orderId}-${bid.bidId}` ? (
+                                    <FaSpinner className="animate-spin" />
+                                  ) : (
                                     <>
                                       <FaCheck className="mr-1.5" />
                                       <span className="whitespace-nowrap">Accept</span>
@@ -1767,12 +2018,12 @@ const NFTDetailPage = () => {
                                   )}
                                 </button>
                                 <button
-                                  onClick={() => handleRejectBid(bid.orderId, bid.bidIndex)}
-                                  disabled={isRejectingBid && rejectingBidId === `${bid.orderId}-${bid.bidIndex}`}
-                                  className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white text-sm font-bold rounded-lg shadow-sm hover:shadow-red-500/20 transition-all duration-200 disabled:opacity-50 flex items-center"
-                                >
-                                  {isRejectingBid && rejectingBidId === `${bid.orderId}-${bid.bidIndex}` ? 
-                                    <FaSpinner className="animate-spin" /> : (
+                                  onClick={() => handleRejectBid(bid.orderId, bid.bidId)}
+                                  disabled={isRejectingBid && rejectingBidId === `${bid.orderId}-${bid.bidId}`}
+                                  className="px-3 py-1.5 bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white text-sm font-bold rounded-lg shadow-sm hover:shadow-red-500/20 transition-all duration-200 disabled:opacity-50 flex items-center">
+                                  {isRejectingBid && rejectingBidId === `${bid.orderId}-${bid.bidId}` ? (
+                                    <FaSpinner className="animate-spin" />
+                                  ) : (
                                     <>
                                       <FaTimes className="mr-1.5" />
                                       <span className="whitespace-nowrap">Reject</span>
@@ -1783,12 +2034,12 @@ const NFTDetailPage = () => {
                             ) : isUserBidder && !bid.isRejected ? (
                               // Only show withdraw button if bid is not rejected and user is bidder
                               <button
-                                onClick={() => handleWithdrawBid(bid.orderId, bid.bidIndex)}
-                                disabled={isWithdrawingBid && withdrawingBidId === `${bid.orderId}-${bid.bidIndex}`}
-                                className="px-4 py-1.5 bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg hover:shadow-red-500/30 transform hover:translate-y-[-1px] transition-all duration-200 disabled:opacity-50 flex items-center justify-center"
-                              >
-                                {isWithdrawingBid && withdrawingBidId === `${bid.orderId}-${bid.bidIndex}` ? 
-                                  <FaSpinner className="animate-spin" /> : (
+                                onClick={() => handleWithdrawBid(bid.orderId, bid.bidId)}
+                                disabled={isWithdrawingBid && withdrawingBidId === `${bid.orderId}-${bid.bidId}`}
+                                className="px-4 py-1.5 bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg hover:shadow-red-500/30 transform hover:translate-y-[-1px] transition-all duration-200 disabled:opacity-50 flex items-center justify-center">
+                                {isWithdrawingBid && withdrawingBidId === `${bid.orderId}-${bid.bidId}` ? (
+                                  <FaSpinner className="animate-spin" />
+                                ) : (
                                   <>
                                     <FaTimes className="mr-1.5" />
                                     <span className="whitespace-nowrap">Cancel Offer</span>
@@ -1813,8 +2064,7 @@ const NFTDetailPage = () => {
                           ? "When someone makes an offer on your NFT, it will appear here for you to accept or reject."
                           : currentOrder 
                             ? "Be the first to make an offer on this NFT by clicking the 'Make Offer' button above."
-                            : "This NFT is not currently listed for sale."
-                        }
+                          : "This NFT is not currently listed for sale."}
                       </p>
                     </div>
                   </div>
@@ -1832,9 +2082,7 @@ const NFTDetailPage = () => {
                 </div>
                 <div className="flex justify-between">
                   <p className="text-gray-400">Contract</p>
-                  <p className="text-white font-medium truncate w-48 text-right">
-                    {process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS || 'Unknown'}
-                  </p>
+                  <p className="text-white font-medium truncate w-48 text-right">{process.env.NEXT_PUBLIC_BRIDGE_CONTRACT_ADDRESS || "Unknown"}</p>
                 </div>
                 <div className="flex justify-between">
                   <p className="text-gray-400">Network</p>
@@ -1850,18 +2098,3 @@ const NFTDetailPage = () => {
 };
 
 export default NFTDetailPage; 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

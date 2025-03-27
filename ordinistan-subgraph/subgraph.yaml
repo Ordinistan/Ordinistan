@@ -1,0 +1,103 @@
+specVersion: 1.2.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: Bridge
+    network: core
+    source:
+      address: "0xAA6005D95b61876E1B66191e9db39a66aceD3fa7"
+      abi: Bridge
+      startBlock: 23196137
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Approval
+        - ApprovalForAll
+        - OrdinalBridged
+        - OwnershipTransferred
+        - Transfer
+      abis:
+        - name: Bridge
+          file: ./abis/Bridge.json
+      eventHandlers:
+        - event: Approval(indexed address,indexed address,indexed uint256)
+          handler: handleApproval
+        - event: ApprovalForAll(indexed address,indexed address,bool)
+          handler: handleApprovalForAll
+        - event: OrdinalBridged(indexed string,indexed uint256,indexed address,string,uint256)
+          handler: handleOrdinalBridged
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: Transfer(indexed address,indexed address,indexed uint256)
+          handler: handleTransfer
+      file: ./src/bridge.ts
+  - kind: ethereum
+    name: Marketplace
+    network: core
+    source:
+      address: "0x5405b0E3851f99699c1E5C092F50BAfdAe770a0b"
+      abi: Marketplace
+      startBlock: 23196137
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - AddNFTSupport
+        - AddTokenSupport
+        - AdminChanged
+        - BeaconUpgraded
+        - BidAccepted
+        - BidPlaced
+        - BidRejected
+        - BidWithdraw
+        - ContractUpgraded
+        - FeeClaimed
+        - Initialized
+        - OrderCancelled
+        - OrderCreated
+        - OrderPurchased
+        - OwnershipTransferred
+        - Upgraded
+      abis:
+        - name: Marketplace
+          file: ./abis/Marketplace.json
+      eventHandlers:
+        - event: AddNFTSupport(indexed address)
+          handler: handleAddNFTSupport
+        - event: AddTokenSupport(indexed address)
+          handler: handleAddTokenSupport
+        - event: AdminChanged(address,address)
+          handler: handleAdminChanged
+        - event: BeaconUpgraded(indexed address)
+          handler: handleBeaconUpgraded
+        - event: BidAccepted(indexed uint256,uint256,uint16)
+          handler: handleBidAccepted
+        - event: BidPlaced(indexed uint256,uint256,address,uint16,uint256,uint256,uint256)
+          handler: handleBidPlaced
+        - event: BidRejected(indexed uint256,uint256)
+          handler: handleBidRejected
+        - event: BidWithdraw(indexed uint256,uint256)
+          handler: handleBidWithdraw
+        - event: ContractUpgraded(indexed address,indexed address)
+          handler: handleContractUpgraded
+        - event: FeeClaimed(indexed address,address,uint256)
+          handler: handleFeeClaimed
+        - event: Initialized(uint8)
+          handler: handleInitialized
+        - event: OrderCancelled(indexed uint256)
+          handler: handleOrderCancelled
+        - event: OrderCreated(indexed uint256,indexed uint256,uint256,address,uint16,uint256,uint256,address,address)
+          handler: handleOrderCreated
+        - event: OrderPurchased(indexed uint256,address,uint16)
+          handler: handleOrderPurchased
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: Upgraded(indexed address)
+          handler: handleUpgraded
+      file: ./src/marketplace.ts

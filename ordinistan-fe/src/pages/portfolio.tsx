@@ -4,8 +4,9 @@ import Head from 'next/head';
 import { FiLoader, FiGrid, FiList } from 'react-icons/fi';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
 import NFTCard from '../components/shared/NFTCard';
-import { useWalletNFTs } from '../hooks/useWalletNFTs';
+import { NFT, useWalletNFTs } from '../hooks/useWalletNFTs';
 import Link from 'next/link';
+import Image from 'next/image';
 
 const Portfolio: NextPage = () => {
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -45,7 +46,7 @@ const Portfolio: NextPage = () => {
     </div>
   );
 
-  const renderNFTGrid = (nfts: ReturnType<typeof useWalletNFTs>['nfts']) => (
+  const renderNFTGrid = (nfts: NFT[]) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {nfts.map((nft, index) => (
         <div key={nft.tokenId} 
@@ -57,7 +58,7 @@ const Portfolio: NextPage = () => {
     </div>
   );
 
-  const renderNFTList = (nfts: ReturnType<typeof useWalletNFTs>['nfts']) => (
+  const renderNFTList = (nfts: NFT[]) => (
     <div className="space-y-4">
       {nfts.map((nft, index) => (
         <div key={nft.tokenId} 
@@ -67,9 +68,11 @@ const Portfolio: NextPage = () => {
                       flex items-center gap-4"
              style={{ animationDelay: `${index * 100}ms` }}>
           <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
-            <img 
+            <Image 
               src={nft.image || '/placeholder-nft.png'} 
               alt={nft.name || 'NFT'} 
+              width={80}
+              height={80}
               className="w-full h-full object-cover"
             />
           </div>

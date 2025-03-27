@@ -3,15 +3,15 @@ import Head from 'next/head';
 import NFTCard from '../components/shared/NFTCard';
 import { useState, useEffect } from 'react';
 import { FiSearch, FiFilter, FiLoader } from 'react-icons/fi';
-import { useWalletNFTs, NFT } from '../hooks/useWalletNFTs';
+import { NFT } from '../hooks/useWalletNFTs';
+import { useAllNFTs } from '../hooks/useAllNFTs';
 
 const Explore: NextPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { nfts, loading, error } = useWalletNFTs();
+  const { allNFTs, loading, error } = useAllNFTs();
   const [filteredNfts, setFilteredNfts] = useState<NFT[]>([]);
   const [loadingStatus, setLoadingStatus] = useState(true);
-  
-  // Filter out sold NFTs by checking for accepted bids
+
   useEffect(() => {
     const filterSoldNfts = async () => {
       if (loading) {
@@ -22,16 +22,19 @@ const Explore: NextPage = () => {
       setLoadingStatus(true);
       
       try {
-        const subsquidEndpoint = "https://api.ordinistan.io/graphql";
+        const graphEndpoint = process.env.NEXT_PUBLIC_GRAPH_ENDPOINT;
+        if (!graphEndpoint) {
+          throw new Error('Graph endpoint not configured');
+        }
         
         // Get all bidAccepted events for all orders
-        const allOrderIds = nfts
+        const allOrderIds = allNFTs
           .filter(nft => nft.isListed && nft.orderId)
           .map(nft => nft.orderId);
         
         if (allOrderIds.length === 0) {
           // No orders to check, just use all NFTs
-          setFilteredNfts(nfts);
+          setFilteredNfts(allNFTs);
           setLoadingStatus(false);
           return;
         }
@@ -46,7 +49,7 @@ const Explore: NextPage = () => {
           }
         `;
         
-        const response = await fetch(subsquidEndpoint, {
+        const response = await fetch(graphEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -62,25 +65,25 @@ const Explore: NextPage = () => {
           );
           
           // Filter out NFTs with accepted bids
-          const unsoldNfts = nfts.filter(nft => 
+          const unsoldNfts = allNFTs.filter(nft => 
             !nft.isListed || !nft.orderId || !acceptedOrderIds.has(nft.orderId)
           );
           
           setFilteredNfts(unsoldNfts);
         } else {
           // If query fails, just use all NFTs
-          setFilteredNfts(nfts);
+          setFilteredNfts(allNFTs);
         }
       } catch (error) {
         console.error("Error filtering sold NFTs:", error);
-        setFilteredNfts(nfts);
+        setFilteredNfts(allNFTs);
       } finally {
         setLoadingStatus(false);
       }
     };
     
     filterSoldNfts();
-  }, [nfts, loading]);
+  }, [allNFTs, loading]);
 
   // Apply search filters
   const searchFilteredNFTs = filteredNfts.filter(nft => 
@@ -138,7 +141,7 @@ const Explore: NextPage = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {searchFilteredNFTs.map((nft, index) => (
-                <div key={nft.id} 
+                <div key={`${nft.tokenId}-${index}`} 
                      className="animate-fade-in"
                      style={{ animationDelay: `${index * 100}ms` }}>
                   <NFTCard nft={nft} showAll={true} />

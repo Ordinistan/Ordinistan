@@ -2,15 +2,15 @@ import { useState, useEffect } from 'react';
 import NFTCard from '../shared/NFTCard';
 import { FiArrowRight } from 'react-icons/fi';
 import { useRouter } from 'next/router';
-import { useWalletNFTs, NFT } from '../../hooks/useWalletNFTs';
+import { NFT } from '../../hooks/useWalletNFTs';
+import { useAllNFTs } from '../../hooks/useAllNFTs';
 
 const FeaturedNFTs = () => {
   const router = useRouter();
-  const { nfts, loading, error } = useWalletNFTs();
+  const { allNFTs, loading, error } = useAllNFTs();
   const [filteredNfts, setFilteredNfts] = useState<NFT[]>([]);
   const [loadingStatus, setLoadingStatus] = useState(true);
 
-  // Filter out sold NFTs by checking for accepted bids
   useEffect(() => {
     const filterSoldNfts = async () => {
       if (loading) {
@@ -21,16 +21,31 @@ const FeaturedNFTs = () => {
       setLoadingStatus(true);
       
       try {
-        const subsquidEndpoint = "https://api.ordinistan.io/graphql";
+        // Make sure we have NFTs to display
+        if (!allNFTs || !Array.isArray(allNFTs)) {
+          setFilteredNfts([]);
+          setLoadingStatus(false);
+          return;
+        }
+        
+        const graphEndpoint = process.env.NEXT_PUBLIC_GRAPH_ENDPOINT;
+        if (!graphEndpoint) {
+          throw new Error('Graph endpoint not configured');
+        }
         
         // Get all bidAccepted events for all orders
-        const allOrderIds = nfts
+        const allOrderIds = allNFTs
           .filter(nft => nft.isListed && nft.orderId)
           .map(nft => nft.orderId);
         
         if (allOrderIds.length === 0) {
           // No orders to check, just use all NFTs
-          setFilteredNfts(nfts);
+          // Get a random selection of NFTs if we have more than 6
+          const nftsToShow = allNFTs.length > 6 
+            ? allNFTs.sort(() => 0.5 - Math.random()).slice(0, 6) 
+            : allNFTs;
+          
+          setFilteredNfts(nftsToShow);
           setLoadingStatus(false);
           return;
         }
@@ -45,7 +60,7 @@ const FeaturedNFTs = () => {
           }
         `;
         
-        const response = await fetch(subsquidEndpoint, {
+        const response = await fetch(graphEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -61,25 +76,52 @@ const FeaturedNFTs = () => {
           );
           
           // Filter out NFTs with accepted bids
-          const unsoldNfts = nfts.filter(nft => 
+          const unsoldNfts = allNFTs.filter(nft => 
             !nft.isListed || !nft.orderId || !acceptedOrderIds.has(nft.orderId)
           );
           
-          setFilteredNfts(unsoldNfts);
+          // Prioritize listed NFTs but show a mix if possible
+          let nftsToShow: NFT[] = [];
+          const availableListedNFTs = unsoldNfts.filter(nft => nft.isListed);
+          
+          if (availableListedNFTs.length >= 6) {
+            // If we have enough listed NFTs, show 6 random ones
+            nftsToShow = availableListedNFTs.sort(() => 0.5 - Math.random()).slice(0, 6);
+          } else {
+            // Otherwise, show all available listed NFTs and fill the rest with unlisted
+            nftsToShow = [
+              ...availableListedNFTs,
+              ...unsoldNfts.filter(nft => !nft.isListed)
+                .sort(() => 0.5 - Math.random())
+                .slice(0, 6 - availableListedNFTs.length)
+            ];
+          }
+          
+          setFilteredNfts(nftsToShow);
         } else {
-          // If query fails, just use all NFTs
-          setFilteredNfts(nfts);
+          // If query fails, just use a sampling of all NFTs
+          const nftsToShow = allNFTs.length > 6 
+            ? allNFTs.sort(() => 0.5 - Math.random()).slice(0, 6) 
+            : allNFTs;
+          
+          setFilteredNfts(nftsToShow);
         }
       } catch (error) {
         console.error("Error filtering sold NFTs:", error);
-        setFilteredNfts(nfts);
+        // Ensure filteredNfts is an array even if there's an error
+        // Just show a random selection of NFTs
+        const nftsToShow = Array.isArray(allNFTs) && allNFTs.length > 0
+          ? allNFTs.sort(() => 0.5 - Math.random()).slice(0, 6)
+          : [];
+          
+        setFilteredNfts(nftsToShow);
       } finally {
         setLoadingStatus(false);
       }
     };
     
     filterSoldNfts();
-  }, [nfts, loading]);
+  }, [allNFTs, loading]);
 
   // Show loading state
   if (loading || loadingStatus) {
@@ -128,14 +170,14 @@ const FeaturedNFTs = () => {
           </button>
         </div>
 
-        {filteredNfts.length === 0 ? (
+        {!filteredNfts || filteredNfts.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-core-muted">Connect your wallet to view NFTs OR no Nfts found.</p>
+            <p className="text-core-muted">No NFTs available at the moment.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredNfts.map((nft, index) => (
-              <div key={nft.id} 
+              <div key={`${nft.tokenId}-${index}`} 
                    className="animate-fade-in glass-card rounded-xl overflow-hidden"
                    style={{ animationDelay: `${index * 150}ms` }}>
                 <NFTCard nft={nft} showAll={true} />
