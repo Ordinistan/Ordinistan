@@ -1,4 +1,4 @@
-specVersion: 1.2.0
+specVersion: 0.0.7
 indexerHints:
   prune: auto
 schema:
@@ -13,7 +13,7 @@ dataSources:
       startBlock: 23196137
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.9
+      apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
         - Approval
@@ -45,7 +45,7 @@ dataSources:
       startBlock: 23196137
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.9
+      apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
         - AddNFTSupport

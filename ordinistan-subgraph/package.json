@@ -4,7 +4,8 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ ordinistanbridge-marketplace-subgraph",
+    "create-subgraph": "graph create ordinistan --node https://thegraph.coredao.org/deploy/ --access-token [token]",
+    "deploy-subgraph": "graph deploy ordinistan --node https://thegraph.coredao.org/deploy/ --ipfs https://thegraph.coredao.org/ipfs/ --access-token [token]",
     "create-local": "graph create --node http://localhost:8020/ ordinistanbridge-marketplace-subgraph",
     "remove-local": "graph remove --node http://localhost:8020/ ordinistanbridge-marketplace-subgraph",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 ordinistanbridge-marketplace-subgraph --version-label v0.0.1",
