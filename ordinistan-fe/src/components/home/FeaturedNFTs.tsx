@@ -52,8 +52,9 @@ const FeaturedNFTs = () => {
         
         // Query for accepted bids for these orders
         const bidAcceptedQuery = `
-          {
-            marketplaceEventBidAccepteds {
+          query {
+            bidAccepteds {
+              id
               orderId
               bidId
             }
@@ -70,10 +71,17 @@ const FeaturedNFTs = () => {
         
         if (response.ok) {
           const result = await response.json();
+          console.log("Bid accepted query result:", result);
+          
           const acceptedOrderIds = new Set(
-            (result.data?.marketplaceEventBidAccepteds || [])
-              .map((bid: any) => bid.orderId)
+            (result.data?.bidAccepteds || [])
+              .map((bid: any) => bid.orderId.toString())
           );
+          
+          console.log("Accepted order IDs:", Array.from(acceptedOrderIds));
+          console.log("NFT order IDs to check:", allNFTs
+            .filter(nft => nft.isListed && nft.orderId)
+            .map(nft => nft.orderId));
           
           // Filter out NFTs with accepted bids
           const unsoldNfts = allNFTs.filter(nft => 

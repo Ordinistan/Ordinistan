@@ -130,7 +130,7 @@ export function useAllNFTs() {
       const listingMap = new Map();
       activeListings.forEach((listing: any) => {
         listingMap.set(listing.tokenId.toString(), {
-          orderId: listing.orderId,
+          orderId: listing.orderId.toString(),
           price: ethers.formatEther(listing.pricePerNFT || '0'),
           seller: listing.seller
         });
@@ -152,9 +152,9 @@ export function useAllNFTs() {
 
       // Create a set of inactive order IDs
       const inactiveOrderIds = new Set();
-      cancelledOrders.forEach((order: any) => inactiveOrderIds.add(order.orderId));
-      purchasedOrders.forEach((order: any) => inactiveOrderIds.add(order.orderId));
-      acceptedBids.forEach((bid: any) => inactiveOrderIds.add(bid.orderId));
+      cancelledOrders.forEach((order: any) => inactiveOrderIds.add(order.orderId.toString()));
+      purchasedOrders.forEach((order: any) => inactiveOrderIds.add(order.orderId.toString()));
+      acceptedBids.forEach((bid: any) => inactiveOrderIds.add(bid.orderId.toString()));
 
       // Filter out any listings that have been cancelled or completed
       listingMap.forEach((listing, tokenId) => {

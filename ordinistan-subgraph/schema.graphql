@@ -85,8 +85,8 @@ type BeaconUpgraded @entity(immutable: true) {
 
 type BidAccepted @entity(immutable: true) {
   id: Bytes!
-  orderId: Bytes! # bytes32
-  bidId: Bytes! # bytes32
+  orderId: BigInt! # uint256
+  bidId: BigInt! # uint256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
@@ -94,7 +94,7 @@ type BidAccepted @entity(immutable: true) {
 
 type BidPlaced @entity(immutable: true) {
   id: Bytes!
-  orderId: Bytes! # bytes32
+  orderId: BigInt! # uint256
   bidder: Bytes! # address
   copies: BigInt!
   pricePerNFT: BigInt!
@@ -107,8 +107,8 @@ type BidPlaced @entity(immutable: true) {
 
 type BidRejected @entity(immutable: true) {
   id: Bytes!
-  orderId: Bytes! # bytes32
-  bidId: Bytes! # bytes32
+  orderId: BigInt! # uint256
+  bidId: BigInt! # uint256
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
@@ -116,7 +116,8 @@ type BidRejected @entity(immutable: true) {
 
 type BidWithdraw @entity(immutable: true) {
   id: Bytes!
-  orderId: Bytes! # bytes32
+  orderId: BigInt!
+  bidId: BigInt!
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
@@ -151,7 +152,7 @@ type Initialized @entity(immutable: true) {
 
 type OrderCancelled @entity(immutable: true) {
   id: Bytes!
-  orderId: Bytes! # bytes32
+  orderId: BigInt!
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
@@ -170,12 +171,12 @@ type OrderCreated @entity(immutable: true) {
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
-  orderId: Bytes! # bytes32
+  orderId: BigInt!
 }
 
 type OrderPurchased @entity(immutable: true) {
   id: Bytes!
-  orderId: Bytes! # bytes32
+  orderId: BigInt!
   buyer: Bytes! # address
   copies: BigInt!
   blockNumber: BigInt!

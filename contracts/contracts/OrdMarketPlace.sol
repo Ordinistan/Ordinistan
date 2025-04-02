@@ -56,7 +56,7 @@ contract OrdMarketPlace is
     }
 
     mapping(uint256 => Order) public order;
-    mapping(uint256 => Bid[]) public bids; // many-to-one relationship with Order , orderId => Bid[]
+    mapping(uint256 => Bid[]) public bids;
     mapping(address => bool) public nftContracts;
     mapping(address => bool) public tokensSupport;
 

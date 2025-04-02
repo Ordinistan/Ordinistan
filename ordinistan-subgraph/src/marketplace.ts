@@ -93,8 +93,8 @@ export function handleBidAccepted(event: BidAcceptedEvent): void {
   let entity = new BidAccepted(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
-  entity.orderId = Bytes.fromI32(event.params.orderId.toI32())
-  entity.bidId = Bytes.fromI32(event.params.bidId.toI32())
+  entity.orderId = event.params.orderId
+  entity.bidId = event.params.bidId
   
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp
@@ -107,7 +107,7 @@ export function handleBidPlaced(event: BidPlacedEvent): void {
   let entity = new BidPlaced(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
-  entity.orderId = Bytes.fromI32(event.params.orderId.toI32())
+  entity.orderId = event.params.orderId
   entity.bidder = event.params.bidder
   entity.copies = BigInt.fromI32(event.params.copies)
   entity.pricePerNFT = event.params.pricePerNFT
@@ -125,8 +125,8 @@ export function handleBidRejected(event: BidRejectedEvent): void {
   let entity = new BidRejected(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
-  entity.orderId = Bytes.fromI32(event.params.orderId.toI32())
-  entity.bidId = Bytes.fromI32(event.params.bidId.toI32())
+  entity.orderId = event.params.orderId
+  entity.bidId = event.params.bidId
   
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp
@@ -139,7 +139,8 @@ export function handleBidWithdraw(event: BidWithdrawEvent): void {
   let entity = new BidWithdraw(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
-  entity.orderId = Bytes.fromI32(event.params.orderId.toI32())
+  entity.orderId = event.params.orderId
+  entity.bidId = event.params.bidId
   
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp
@@ -194,7 +195,7 @@ export function handleOrderCancelled(event: OrderCancelledEvent): void {
   let entity = new OrderCancelled(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
-  entity.orderId = Bytes.fromI32(event.params.orderId.toI32())
+  entity.orderId = event.params.orderId
   
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp
@@ -215,7 +216,7 @@ export function handleOrderCreated(event: OrderCreatedEvent): void {
   entity.endTime = event.params.endTime
   entity.paymentToken = event.params.paymentToken
   entity.nftContract = event.params.nftContract
-  entity.orderId = Bytes.fromI32(event.params.orderId.toI32())
+  entity.orderId = event.params.orderId
   
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp
@@ -228,7 +229,7 @@ export function handleOrderPurchased(event: OrderPurchasedEvent): void {
   let entity = new OrderPurchased(
     event.transaction.hash.concatI32(event.logIndex.toI32())
   )
-  entity.orderId = Bytes.fromI32(event.params.orderId.toI32())
+  entity.orderId = event.params.orderId
   entity.buyer = event.params.buyer
   entity.copies = BigInt.fromI32(event.params.copies)
   
