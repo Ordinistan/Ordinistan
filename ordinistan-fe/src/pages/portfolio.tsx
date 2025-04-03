@@ -169,7 +169,7 @@ const Portfolio: NextPage = () => {
         <meta name="description" content="Manage your Ordinals collection on Core Chain" />
       </Head>
 
-      <section className="py-16 px-4 min-h-screen bg-gray-900">
+      <section className="py-28 px-4 min-h-screen bg-gray-900">
         <div className="max-w-6xl mx-auto">
           <PortfolioHeader />
           

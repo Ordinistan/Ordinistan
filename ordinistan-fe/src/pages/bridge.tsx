@@ -236,7 +236,7 @@ const Bridge: NextPage = () => {
         <meta name="description" content="Bridge your Bitcoin Ordinals to Core Chain" />
       </Head>
 
-      <section className="py-16 px-4">
+      <section className="py-28 px-4">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
             <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-core-primary to-core-secondary 
