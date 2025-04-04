@@ -155,110 +155,112 @@ const InscribePage: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl bg-black min-h-screen">
-      <h1 className="text-5xl font-bold mt-14 text-center mb-2 bg-gradient-to-r from-[#F4A460] via-[#E85D75] to-[#9370DB] text-transparent bg-clip-text">
-        Create Inscription
-      </h1>
-      <p className="text-gray-400 text-center mb-12">
-        Create your Bitcoin Ordinals inscription seamlessly
-      </p>
+    <div className="min-h-screen bg-black">
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <h1 className="text-5xl font-bold mt-14 text-center mb-2 bg-gradient-to-r from-[#F4A460] via-[#E85D75] to-[#9370DB] text-transparent bg-clip-text">
+          Create Inscription
+        </h1>
+        <p className="text-gray-400 text-center mb-12">
+          Create your Bitcoin Ordinals inscription seamlessly
+        </p>
 
-      <div className="bg-[#1A1A1A] rounded-lg p-8">
-        <form onSubmit={handleInscribe} className="space-y-6">
-          <div className="space-y-6">
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">
-                Content Type
-              </label>
-              <select
-                value={contentType}
-                onChange={(e) => {
-                  setContentType(e.target.value);
-                  if (selectedFile) {
-                    handleReset();
-                  }
-                }}
-                className="w-full p-3 rounded-md bg-[#2A2A2A] border border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500"
-              >
-                <option value="image/png">PNG Image</option>
-                <option value="image/jpeg">JPEG Image</option>
-                <option value="image/gif">GIF Image</option>
-                <option value="image/webp">WebP Image</option>
-              </select>
-            </div>
+        <div className="bg-[#1A1A1A] rounded-lg p-8">
+          <form onSubmit={handleInscribe} className="space-y-6">
+            <div className="space-y-6">
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  Content Type
+                </label>
+                <select
+                  value={contentType}
+                  onChange={(e) => {
+                    setContentType(e.target.value);
+                    if (selectedFile) {
+                      handleReset();
+                    }
+                  }}
+                  className="w-full p-3 rounded-md bg-[#2A2A2A] border border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="image/png">PNG Image</option>
+                  <option value="image/jpeg">JPEG Image</option>
+                  <option value="image/gif">GIF Image</option>
+                  <option value="image/webp">WebP Image</option>
+                </select>
+              </div>
 
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">
-                Upload Image
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="w-full p-3 rounded-md bg-[#2A2A2A] border border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600"
-              />
-              <p className="mt-2 text-sm text-gray-400">
-                Maximum file size: {(MAX_FILE_SIZE / 1024).toFixed(0)}KB. Supported formats: PNG, JPEG, GIF, WEBP
-              </p>
-              {previewUrl && (
-                <div className="mt-4">
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="max-w-full h-auto rounded-lg border border-gray-600"
-                    style={{ maxHeight: '200px' }}
-                  />
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  Upload Image
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="w-full p-3 rounded-md bg-[#2A2A2A] border border-gray-600 text-gray-200 focus:outline-none focus:border-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600"
+                />
+                <p className="mt-2 text-sm text-gray-400">
+                  Maximum file size: {(MAX_FILE_SIZE / 1024).toFixed(0)}KB. Supported formats: PNG, JPEG, GIF, WEBP
+                </p>
+                {previewUrl && (
+                  <div className="mt-4">
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="max-w-full h-auto rounded-lg border border-gray-600"
+                      style={{ maxHeight: '200px' }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className="text-red-500 text-sm p-3 rounded-md bg-red-500/10 border border-red-500/20">
+                  {error}
                 </div>
               )}
-            </div>
 
-            {error && (
-              <div className="text-red-500 text-sm p-3 rounded-md bg-red-500/10 border border-red-500/20">
-                {error}
-              </div>
-            )}
-
-            {txId && (
-              <div className="text-green-500 text-sm p-3 rounded-md bg-green-500/10 border border-green-500/20">
-                <p className="font-medium">Inscription created!</p>
-                <p className="break-all mt-1">Transaction ID: {txId}</p>
-              </div>
-            )}
-
-            <div className="flex gap-4">
-              <button
-                type="submit"
-                disabled={!isConnected || isInscribing || (!content && !selectedFile)}
-                className={`flex-1 p-3 rounded-md font-medium text-white ${
-                  (!isConnected || isInscribing || (!content && !selectedFile))
-                    ? 'opacity-50 cursor-not-allowed bg-gray-600'
-                    : 'bg-gradient-to-r from-[#F4A460] via-[#E85D75] to-[#9370DB] hover:opacity-90'
-                }`}
-              >
-                {isInscribing ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Creating Inscription...
-                  </span>
-                ) : (
-                  'Create Inscription'
-                )}
-              </button>
-              {(content || selectedFile) && (
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="px-6 py-3 rounded-md font-medium text-white bg-gray-600 hover:bg-gray-700"
-                >
-                  Reset
-                </button>
+              {txId && (
+                <div className="text-green-500 text-sm p-3 rounded-md bg-green-500/10 border border-green-500/20">
+                  <p className="font-medium">Inscription created!</p>
+                  <p className="break-all mt-1">Transaction ID: {txId}</p>
+                </div>
               )}
+
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  disabled={!isConnected || isInscribing || (!content && !selectedFile)}
+                  className={`flex-1 p-3 rounded-md font-medium text-white ${
+                    (!isConnected || isInscribing || (!content && !selectedFile))
+                      ? 'opacity-50 cursor-not-allowed bg-gray-600'
+                      : 'bg-gradient-to-r from-[#F4A460] via-[#E85D75] to-[#9370DB] hover:opacity-90'
+                  }`}
+                >
+                  {isInscribing ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Creating Inscription...
+                    </span>
+                  ) : (
+                    'Create Inscription'
+                  )}
+                </button>
+                {(content || selectedFile) && (
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="px-6 py-3 rounded-md font-medium text-white bg-gray-600 hover:bg-gray-700"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
