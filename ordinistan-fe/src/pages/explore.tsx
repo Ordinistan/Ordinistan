@@ -93,7 +93,7 @@ const Explore: NextPage = () => {
   );
 
   return (
-    <>
+    <div className="py-12">
       <Head>
         <title>Explore Ordinals - Ordinistan</title>
         <meta name="description" content="Explore all Bitcoin Ordinals on Core Chain" />
@@ -151,7 +151,7 @@ const Explore: NextPage = () => {
           )}
         </div>
       </section>
-    </>
+    </div>
   );
 };
 

@@ -130,10 +130,10 @@ const InscribePage: React.FC = () => {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8 bg-white rounded-lg shadow-lg">
-          <h1 className="text-3xl font-bold mb-4">Connect Your Wallet</h1>
-          <p className="text-gray-600 mb-6">
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center p-8 bg-[#1A1A1A] rounded-lg shadow-lg">
+          <h1 className="text-3xl font-bold mb-4 text-white">Connect Your Wallet</h1>
+          <p className="text-gray-400 mb-6">
             Please connect your Xverse wallet to create inscriptions
           </p>
           <div className="animate-pulse">
@@ -155,7 +155,7 @@ const InscribePage: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="container mx-auto px-4 py-8 max-w-4xl bg-black min-h-screen">
       <h1 className="text-5xl font-bold mt-14 text-center mb-2 bg-gradient-to-r from-[#F4A460] via-[#E85D75] to-[#9370DB] text-transparent bg-clip-text">
         Create Inscription
       </h1>
