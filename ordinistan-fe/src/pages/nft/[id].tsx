@@ -64,29 +64,14 @@ const CANCELLED_ORDERS_QUERY = `
   }
 `;
 
-// Simple Layout component
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800/80 border-b border-gray-700 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-500 to-purple-300 text-transparent bg-clip-text">Ordinistan</h1>
-          <div className="flex space-x-2">
-            <Link href="/portfolio" className="px-4 py-2 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-white">
-              My Portfolio
-            </Link>
-            <Link href="/explore" className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors text-white">
-              Explore
-            </Link>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gray-900 text-white py-36">
       <main>{children}</main>
     </div>
   );
 };
 
-// Simple toast implementation
 const toast = {
   success: (message: string) => console.log(`Success: ${message}`),
   error: (message: string) => console.error(`Error: ${message}`),
