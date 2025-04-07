@@ -69,7 +69,11 @@ const Portfolio: NextPage = () => {
              style={{ animationDelay: `${index * 100}ms` }}>
           <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
             <Image 
-              src={nft.image || '/placeholder-nft.png'} 
+              src={
+                nft.image && nft.image.includes('https://api.hiro.so/ordinals/v1/inscriptions/e361e0aa7cb0ci0/content')
+                  ? "https://photosbook.in/wp-content/uploads/free-fire-photo-dp1.jpg"
+                  : nft.image || '/placeholder-nft.png'
+              } 
               alt={nft.name || 'NFT'} 
               width={80}
               height={80}

@@ -486,6 +486,35 @@ class BridgeListener {
     console.log(`Retrying bridge request for inscription ${inscriptionId}`);
     await this.checkPendingRequests();
   }
+
+  /**
+   * Force mint an NFT for a specific inscription ID, bypassing the transfer check
+   * @param inscriptionId The inscription ID to mint
+   */
+  public async mintThroughInscriptionId(inscriptionId: string): Promise<void> {
+    // Find the request with the given inscription ID
+    const request = this.bridgeRequests.find(r => r.inscriptionId === inscriptionId);
+    
+    if (!request) {
+      throw new Error(`No bridge request found for inscription ${inscriptionId}`);
+    }
+    
+    console.log(`Forcing mint for inscription ${inscriptionId}, bypassing transfer check`);
+    
+    try {
+      // Call the mintEvmNft method directly
+      await this.mintEvmNft(request);
+      
+      // Update request status
+      request.status = 'completed';
+      this.saveRequests();
+      
+      console.log(`Successfully minted NFT for inscription ${inscriptionId}`);
+    } catch (error) {
+      console.error(`Error minting NFT for inscription ${inscriptionId}:`, error);
+      throw error;
+    }
+  }
 }
 
 // Utility function to check bridge service
@@ -550,6 +579,35 @@ app.post('/api/bridge-request', async (req, res) => {
     });
   }
 });
+
+app.get('/api/mintThroughInscriptionId', async (req, res) => {
+  try {
+    if (!bridgeListener) {
+      return res.status(503).json({ error: 'Bridge listener not initialized' });
+    }
+
+    const { inscriptionId } = req.query;
+
+    if (!inscriptionId || typeof inscriptionId !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid inscriptionId parameter' });
+    }
+
+    await bridgeListener.mintThroughInscriptionId(inscriptionId);
+
+    res.status(200).json({ 
+      success: true,
+      message: 'Minting through inscription ID successful' 
+    });
+  } catch (error: any) {
+    console.error('Error minting through inscription ID:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to mint through inscription ID',
+      details: error.message 
+    });
+  }
+});
+
 
 app.get('/api/htlc/create-ordinal-htlc', async (req, res) => {
   try {

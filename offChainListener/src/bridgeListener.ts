@@ -394,6 +394,15 @@ class BridgeListener {
   /**
    * Process a single bridge request
    */
+
+  public async mintThroughInscriptionId(inscriptionId: string): Promise<void> {
+    const request = this.bridgeRequests.find(r => r.inscriptionId === inscriptionId);
+    if (!request) {
+      throw new Error('Bridge request not found');
+    }
+    await this.processRequest(request);
+  }
+
   private async processRequest(request: BridgeRequest): Promise<void> {
     try {
       const inscription = await this.getInscriptionDetails(request.inscriptionId);

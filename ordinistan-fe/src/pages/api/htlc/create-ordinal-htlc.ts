@@ -2,16 +2,19 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    console.log("create-ordinal-htlc")
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { recipientAddress, refundAddress } = req.body;
+    const { recipientAddress, refundAddress, btcAddress, userEvmAddress } = req.body;
 
-    if (!recipientAddress || !refundAddress) {
-      return res.status(400).json({ error: 'Missing required parameters: recipientAddress and refundAddress are required' });
+    if (!btcAddress) {
+      return res.status(400).json({ error: 'Missing required parameter: btcAddress is required' });
+    }
+    
+    if (!userEvmAddress) {
+      return res.status(400).json({ error: 'Missing required parameter: userEvmAddress is required' });
     }
 
     // Check if BRIDGE_SERVICE_URL environment variable is set
@@ -24,11 +27,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Forward request to the backend service
     try {
       console.log(`Forwarding request to ${bridgeServiceUrl}/api/htlc/create-ordinal-htlc`);
+      console.log('Request payload:', {
+        btcAddress,
+        userEvmAddress,
+        timeDuration: 72
+      });
       
       const response = await axios.post(`${bridgeServiceUrl}/api/htlc/create-ordinal-htlc`, {
-        recipientAddress,
-        refundAddress
+        btcAddress, // The primary parameter expected by the backend
+        userEvmAddress, // Store this for later use with NFT minting
+        timeDuration: 72 // Default to 72 hours
       });
+
+      console.log('Response received:', response.data);
 
       return res.status(200).json(response.data);
     } catch (error: any) {

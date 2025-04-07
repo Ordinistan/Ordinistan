@@ -32,6 +32,9 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.setupOrdinalHtlcApi = setupOrdinalHtlcApi;
 const create_ordinal_htlc_1 = require("./create-ordinal-htlc");
@@ -39,13 +42,20 @@ const refund_ordinal_htlc_1 = require("./refund-ordinal-htlc");
 const uuid_1 = require("uuid");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
+const axios_1 = __importDefault(require("axios"));
+const cron = __importStar(require("node-cron"));
 // Path for storing HTLC requests
 const STORAGE_PATH = path.join(__dirname, '../../data/htlc-requests.json');
+// Base URL for Hiro API
+const HIRO_API_BASE = 'https://api.hiro.so/ordinals/v1';
 // Ensure the directory exists
 const dirPath = path.dirname(STORAGE_PATH);
 if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
 }
+// Cron job for monitoring HTLC addresses
+let htlcMonitoringJob = null;
+let isMonitoring = false;
 // Load existing HTLC requests or initialize empty array
 let htlcRequests = [];
 try {
@@ -84,15 +94,159 @@ function saveHtlcRequests() {
         console.error('Error saving HTLC requests:', error);
     }
 }
+// Function to check if an address owns any inscriptions
+async function getAddressInscriptions(address) {
+    try {
+        const response = await axios_1.default.get(`${HIRO_API_BASE}/inscriptions`, {
+            params: {
+                address,
+                limit: 20
+            }
+        });
+        if (response.data && response.data.results) {
+            return response.data.results.map((inscription) => inscription.id);
+        }
+        return [];
+    }
+    catch (error) {
+        console.error(`Error fetching inscriptions for address ${address}:`, error);
+        return [];
+    }
+}
+// Function to get inscription details
+async function getInscriptionDetails(inscriptionId) {
+    try {
+        const response = await axios_1.default.get(`${HIRO_API_BASE}/inscriptions/${inscriptionId}`);
+        return response.data;
+    }
+    catch (error) {
+        console.error(`Error fetching inscription ${inscriptionId}:`, error);
+        return null;
+    }
+}
+// Function to mint an NFT from the inscription
+async function mintNftFromInscription(request, inscriptionId) {
+    try {
+        if (!request.userEvmAddress) {
+            console.error('No EVM address found for request');
+            return false;
+        }
+        // Get inscription details
+        const inscription = await getInscriptionDetails(inscriptionId);
+        if (!inscription) {
+            console.error(`Failed to get details for inscription ${inscriptionId}`);
+            return false;
+        }
+        // Calculate token ID from inscription ID
+        const cleanId = inscriptionId.endsWith('i0') ? inscriptionId.slice(0, -2) : inscriptionId;
+        const bigInt = BigInt('0x' + cleanId);
+        const tokenId = (bigInt % BigInt('10000000000000000')).toString();
+        // Call the bridge service to mint the NFT
+        const bridgeServiceUrl = process.env.BRIDGE_SERVICE_URL || 'http://localhost:3003';
+        console.log(`Minting NFT for HTLC request ${request.id} with inscription ${inscriptionId}`);
+        console.log(`Token ID: ${tokenId}, EVM Address: ${request.userEvmAddress}`);
+        // Create a bridge request
+        const bridgeResponse = await axios_1.default.post(`${bridgeServiceUrl}/api/bridge/create-request`, {
+            inscriptionId,
+            userEvmAddress: request.userEvmAddress
+        });
+        if (bridgeResponse.data.success) {
+            console.log(`Successfully created bridge request for inscription ${inscriptionId}`);
+            // Store the inscription and token info in the HTLC request
+            request.inscriptionId = inscriptionId;
+            request.tokenId = tokenId;
+            request.status = 'bridged';
+            saveHtlcRequests();
+            return true;
+        }
+        else {
+            console.error(`Failed to mint NFT for inscription ${inscriptionId}:`, bridgeResponse.data.error);
+            return false;
+        }
+    }
+    catch (error) {
+        console.error(`Error minting NFT from inscription ${inscriptionId}:`, error);
+        return false;
+    }
+}
+// Function to start monitoring HTLC addresses
+function startHtlcMonitoring() {
+    if (htlcMonitoringJob) {
+        htlcMonitoringJob.stop();
+    }
+    htlcMonitoringJob = cron.schedule('*/1 * * * *', async () => {
+        if (isMonitoring)
+            return;
+        isMonitoring = true;
+        try {
+            console.log('Checking HTLC addresses for ordinals...');
+            // Loop through all created HTLC requests that haven't been processed yet
+            for (const request of htlcRequests) {
+                // Only check 'created' requests
+                if (request.status !== 'created' || !request.htlcAddress)
+                    continue;
+                request.lastChecked = Date.now();
+                try {
+                    // Check if the HTLC address has any inscriptions
+                    const inscriptions = await getAddressInscriptions(request.htlcAddress);
+                    if (inscriptions.length > 0) {
+                        console.log(`Found ${inscriptions.length} inscriptions at HTLC address ${request.htlcAddress}`);
+                        // Take the first inscription and mint it
+                        const inscriptionId = inscriptions[0];
+                        const success = await mintNftFromInscription(request, inscriptionId);
+                        if (success) {
+                            console.log(`Successfully processed HTLC request ${request.id}`);
+                        }
+                        else {
+                            // Increment retry count if failed
+                            request.retryCount = (request.retryCount || 0) + 1;
+                            if (request.retryCount >= 5) {
+                                request.status = 'failed';
+                                request.error = {
+                                    message: 'Failed to mint NFT after multiple attempts'
+                                };
+                            }
+                        }
+                    }
+                    else {
+                        console.log(`No inscriptions found at HTLC address ${request.htlcAddress}`);
+                    }
+                }
+                catch (error) {
+                    console.error(`Error processing HTLC request ${request.id}:`, error);
+                    // Update retry count and potentially mark as failed
+                    request.retryCount = (request.retryCount || 0) + 1;
+                    if (request.retryCount >= 5) {
+                        request.status = 'failed';
+                        request.error = {
+                            message: 'Failed to check HTLC address after multiple attempts'
+                        };
+                    }
+                }
+            }
+            // Save any changes
+            saveHtlcRequests();
+        }
+        catch (error) {
+            console.error('Error during HTLC monitoring:', error);
+        }
+        finally {
+            isMonitoring = false;
+        }
+    });
+    console.log('HTLC address monitoring started');
+}
 /**
  * Sets up the HTLC API routes
  * @param app Express application
  */
 function setupOrdinalHtlcApi(app) {
+    // Start HTLC monitoring when the API is set up
+    startHtlcMonitoring();
     // Endpoint to create a new HTLC for ordinals
     app.post('/api/htlc/create-ordinal-htlc', (req, res) => {
         try {
-            const { btcAddress, timeDuration } = req.body;
+            const { btcAddress, timeDuration, userEvmAddress } = req.body;
             if (!btcAddress) {
                 return res.status(400).json({
                     success: false,
@@ -118,7 +272,8 @@ function setupOrdinalHtlcApi(app) {
                 id: requestId,
                 timestamp: Date.now(),
                 btcAddress,
-                status: 'pending'
+                status: 'pending',
+                userEvmAddress // Store the EVM address for later use
             };
             try {
                 // Create the HTLC
@@ -140,7 +295,10 @@ function setupOrdinalHtlcApi(app) {
                 return res.status(200).json({
                     success: true,
                     requestId,
-                    ...htlc
+                    htlcData: {
+                        ...htlc,
+                        userEvmAddress // Include the EVM address in the response
+                    }
                 });
             }
             catch (error) {

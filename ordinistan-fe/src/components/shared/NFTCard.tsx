@@ -122,7 +122,11 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
         {/* NFT Image */}
         <div className="relative w-full aspect-square overflow-hidden group">
           <Image 
-            src={nft.image || '/placeholder-nft.png'} 
+            src={
+              nft.image && nft.image.includes('https://api.hiro.so/ordinals/v1/inscriptions/e361e0aa7cb0ci0/content')
+                ? "https://photosbook.in/wp-content/uploads/free-fire-photo-dp1.jpg"
+                : nft.image || '/placeholder-nft.png'
+            } 
             alt={nft.name} 
             fill
             className="object-cover group-hover:scale-110 transition-transform duration-500"

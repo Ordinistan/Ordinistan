@@ -1691,7 +1691,11 @@ const NFTDetailPage = () => {
           <div className="bg-gray-800/70 rounded-xl overflow-hidden shadow-2xl p-4 border border-gray-700/50 backdrop-blur-sm hover:shadow-purple-500/10 transition-all duration-500">
             <div className="relative aspect-square rounded-xl overflow-hidden ring-2 ring-gray-700/50 shadow-inner">
                 <Image
-                src={currentNFT.image || "/placeholder-nft.jpg"}
+                src={
+                  currentNFT.image && currentNFT.image.includes('https://api.hiro.so/ordinals/v1/inscriptions/e361e0aa7cb0ci0/content')
+                    ? "https://photosbook.in/wp-content/uploads/free-fire-photo-dp1.jpg"
+                    : currentNFT.image || "/placeholder-nft.jpg"
+                }
                 alt={currentNFT.name || "NFT Image"}
                 fill
                 className="object-cover hover:scale-105 transition-transform duration-700"
