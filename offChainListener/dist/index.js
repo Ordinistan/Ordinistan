@@ -47,6 +47,9 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const create_ordinal_htlc_1 = require("./htlc/create-ordinal-htlc");
+const ordinalHtlcApi_1 = __importDefault(require("./htlc/ordinalHtlcApi"));
+const refund_ordinal_htlc_1 = require("./htlc/refund-ordinal-htlc");
 dotenv.config();
 // Chain ID to name mapping
 const CHAIN_NAMES = {
@@ -436,6 +439,78 @@ app.post('/api/bridge-request', async (req, res) => {
         });
     }
 });
+app.get('/api/htlc/create-ordinal-htlc', async (req, res) => {
+    try {
+        if (!bridgeListener) {
+            return res.status(503).json({ error: 'Bridge listener not initialized' });
+        }
+        const { btcAddress, timeDuration } = req.body;
+        try {
+            const htlc = (0, create_ordinal_htlc_1.createOrdinalHtlc)(btcAddress, timeDuration);
+            res.status(200).json(htlc);
+        }
+        catch (error) {
+            console.error('Error creating ordinal HTLC:', error);
+            res.status(500).json({
+                error: 'Failed to create ordinal HTLC',
+                details: error.message
+            });
+        }
+    }
+    catch (error) {
+        console.error('Error creating ordinal HTLC:', error);
+        res.status(500).json({
+            error: 'Failed to create ordinal HTLC',
+            details: error.message
+        });
+    }
+});
+app.post('/api/htlc/refund-ordinal-htlc', async (req, res) => {
+    try {
+        const { btcAddress, htlcAddress } = req.body;
+        if (!btcAddress || !htlcAddress) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required parameters',
+                details: 'btcAddress and htlcAddress are required'
+            });
+        }
+        const refundTx = await (0, refund_ordinal_htlc_1.refundOrdinalHtlc)(btcAddress, htlcAddress);
+        res.status(200).json({
+            success: true,
+            message: 'Refund transaction created successfully',
+            refundTx
+        });
+    }
+    catch (error) {
+        console.error('Error refunding ordinal HTLC:', error);
+        // Check if it's a timelock error
+        if (error.message.includes('Timelock has not expired yet')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Timelock not expired',
+                details: error.message
+            });
+        }
+        res.status(500).json({
+            success: false,
+            error: 'Failed to refund ordinal HTLC',
+            details: error.message
+        });
+    }
+});
+// app.get('/api/htlc/refund-ordinal-htlc-mnemonic', async (req, res) => {
+//   try {
+//     const wif = mnemonicToWIF();
+//     res.status(200).json({ wif });
+//   } catch (error: any) {
+//     console.error('Error generating WIF from mnemonic:', error);
+//     res.status(500).json({ 
+//       error: 'Failed to generate WIF from mnemonic',
+//       details: error.message 
+//     });
+//   }
+// })
 app.get('/api/bridge-request/:inscriptionId', async (req, res) => {
     try {
         if (!bridgeListener) {
@@ -457,11 +532,19 @@ app.get('/api/bridge-request/:inscriptionId', async (req, res) => {
         });
     }
 });
+// Check if HTLC API is enabled
+const ENABLE_HTLC_API = process.env.ENABLE_HTLC_API === 'true' || false;
+// Setup HTLC API if enabled
+if (ENABLE_HTLC_API) {
+    console.log('Setting up Ordinal HTLC API');
+    (0, ordinalHtlcApi_1.default)(app);
+}
 // Start server
 async function startServer() {
     await initializeBridgeListener();
     app.listen(port, () => {
         console.log(`Bridge Listener API running on port ${port}`);
+        console.log(`HTLC API ${ENABLE_HTLC_API ? 'enabled' : 'disabled'}`);
     });
     // Handle graceful shutdown
     process.on('SIGINT', async () => {
@@ -483,3 +566,12 @@ async function startServer() {
 if (require.main === module) {
     startServer().catch(console.error);
 }
+// Add global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Don't exit the process, just log the error
+});
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Don't exit the process, just log the error
+});

@@ -6,6 +6,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import express from 'express';
 import cors from 'cors';
+import { createOrdinalHtlc } from './htlc/create-ordinal-htlc';
+import setupOrdinalHtlcApi from './htlc/ordinalHtlcApi';
+import { refundOrdinalHtlc } from './htlc/refund-ordinal-htlc';
 
 dotenv.config();
 
@@ -548,6 +551,85 @@ app.post('/api/bridge-request', async (req, res) => {
   }
 });
 
+app.get('/api/htlc/create-ordinal-htlc', async (req, res) => {
+  try {
+    if (!bridgeListener) {
+      return res.status(503).json({ error: 'Bridge listener not initialized' });
+    }
+    
+    const {btcAddress, timeDuration} = req.body;
+
+    try {
+      const htlc = createOrdinalHtlc(btcAddress, timeDuration);
+      res.status(200).json(htlc);
+    } catch (error: any) {
+      console.error('Error creating ordinal HTLC:', error);
+      res.status(500).json({ 
+        error: 'Failed to create ordinal HTLC',
+        details: error.message 
+      });
+    }
+  } catch (error: any) {
+    console.error('Error creating ordinal HTLC:', error);
+    res.status(500).json({ 
+      error: 'Failed to create ordinal HTLC',
+      details: error.message 
+    });
+  }
+})
+
+app.post('/api/htlc/refund-ordinal-htlc', async (req, res) => {
+  try {
+    const { btcAddress, htlcAddress } = req.body;
+    
+    if (!btcAddress || !htlcAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters',
+        details: 'btcAddress and htlcAddress are required'
+      });
+    }
+    
+    const refundTx = await refundOrdinalHtlc(btcAddress, htlcAddress);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Refund transaction created successfully',
+      refundTx
+    });
+  } catch (error: any) {
+    console.error('Error refunding ordinal HTLC:', error);
+
+    // Check if it's a timelock error
+    if (error.message.includes('Timelock has not expired yet')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Timelock not expired',
+        details: error.message
+      });
+    }
+
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to refund ordinal HTLC',
+      details: error.message 
+    });
+  }
+});
+
+// app.get('/api/htlc/refund-ordinal-htlc-mnemonic', async (req, res) => {
+//   try {
+//     const wif = mnemonicToWIF();
+//     res.status(200).json({ wif });
+//   } catch (error: any) {
+//     console.error('Error generating WIF from mnemonic:', error);
+//     res.status(500).json({ 
+//       error: 'Failed to generate WIF from mnemonic',
+//       details: error.message 
+//     });
+//   }
+// })
+
 app.get('/api/bridge-request/:inscriptionId', async (req, res) => {
   try {
     if (!bridgeListener) {
@@ -572,12 +654,22 @@ app.get('/api/bridge-request/:inscriptionId', async (req, res) => {
   }
 });
 
+// Check if HTLC API is enabled
+const ENABLE_HTLC_API = process.env.ENABLE_HTLC_API === 'true' || false;
+
+// Setup HTLC API if enabled
+if (ENABLE_HTLC_API) {
+  console.log('Setting up Ordinal HTLC API');
+  setupOrdinalHtlcApi(app);
+}
+
 // Start server
 async function startServer() {
   await initializeBridgeListener();
   
   app.listen(port, () => {
     console.log(`Bridge Listener API running on port ${port}`);
+    console.log(`HTLC API ${ENABLE_HTLC_API ? 'enabled' : 'disabled'}`);
   });
 
   // Handle graceful shutdown
@@ -604,4 +696,15 @@ export { BridgeListener, checkBridgeService, startServer };
 // Start the server if this is the main module
 if (require.main === module) {
   startServer().catch(console.error);
-} 
+}
+
+// Add global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit the process, just log the error
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Don't exit the process, just log the error
+}); 
