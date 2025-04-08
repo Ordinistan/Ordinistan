@@ -4,9 +4,9 @@ import React from 'react';
 const Footer = () => {
   const navigation = {
     main: [
-      { name: 'About', href: '/about' },
-      { name: 'FAQ', href: '/faq' },
-      { name: 'Terms', href: '/terms' },
+      // { name: 'About', href: '/about' },
+      // { name: 'FAQ', href: '/faq' },
+      // { name: 'Terms', href: '/terms' },
     ],
     social: [
       {
@@ -26,7 +26,7 @@ const Footer = () => {
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
           <nav className="flex space-x-4" aria-label="Footer">
-            {navigation.main.map((item) => (
+            {navigation.main.map((item: { name: string; href: string }) => (
               <Link
                 key={item.name}
                 href={item.href}
