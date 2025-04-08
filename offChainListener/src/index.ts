@@ -369,6 +369,7 @@ class BridgeListener {
     try {
       const inscription = await this.getInscriptionDetails(request.inscriptionId);
 
+      // First check if it's at the main bridge address
       if (inscription.address === this.BRIDGE_BTC_ADDRESS) {
         console.log(`Ordinal ${request.inscriptionId} received at bridge address, minting NFT...`);
         
@@ -377,9 +378,45 @@ class BridgeListener {
         // Update request status
         request.status = 'completed';
         console.log(`Bridge request completed for inscription ${request.inscriptionId}`);
-      } else {
-        console.log(`Waiting for ordinal ${request.inscriptionId} to be transferred. Current owner: ${inscription.address}`);
+        return;
       }
+      
+      // Check if the API is enabled
+      const ENABLE_HTLC_API = process.env.ENABLE_HTLC_API === 'true' || false;
+      if (ENABLE_HTLC_API) {
+        // Get HTLC requests from the storage path
+        const htlcStoragePath = path.join(__dirname, '../data/htlc-requests.json');
+        if (fs.existsSync(htlcStoragePath)) {
+          try {
+            const htlcData = fs.readFileSync(htlcStoragePath, 'utf8');
+            const htlcRequests = JSON.parse(htlcData);
+            
+            // Check if the inscription is at any of the HTLC addresses
+            for (const htlcRequest of htlcRequests) {
+              if (htlcRequest.htlcAddress && inscription.address === htlcRequest.htlcAddress) {
+                console.log(`Ordinal ${request.inscriptionId} found at HTLC address ${htlcRequest.htlcAddress}, minting NFT...`);
+                
+                // Update the EVM address from the HTLC request if available
+                if (htlcRequest.userEvmAddress) {
+                  request.userEvmAddress = htlcRequest.userEvmAddress;
+                }
+                
+                await this.mintEvmNft(request);
+                
+                // Update request status
+                request.status = 'completed';
+                console.log(`Bridge request completed for inscription ${request.inscriptionId}`);
+                return;
+              }
+            }
+          } catch (error) {
+            console.error('Error reading HTLC requests file:', error);
+          }
+        }
+      }
+      
+      // If we get here, the ordinal is not at the bridge address or any HTLC address
+      console.log(`Waiting for ordinal ${request.inscriptionId} to be transferred. Current owner: ${inscription.address}`);
     } catch (error) {
       console.error(`Error checking inscription ${request.inscriptionId}:`, error);
       if (axios.isAxiosError(error) && error.response?.status === 404) {

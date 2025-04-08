@@ -156,7 +156,7 @@ async function mintNftFromInscription(request: HtlcRequest, inscriptionId: strin
     console.log(`Token ID: ${tokenId}, EVM Address: ${request.userEvmAddress}`);
     
     // Create a bridge request
-    const bridgeResponse = await axios.post(`${bridgeServiceUrl}/api/bridge/create-request`, {
+    const bridgeResponse = await axios.post(`${bridgeServiceUrl}/api/bridge-request`, {
       inscriptionId,
       userEvmAddress: request.userEvmAddress
     });

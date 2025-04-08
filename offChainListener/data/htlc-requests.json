@@ -32,7 +32,7 @@
     "timeDurationHours": 72,
     "isOrdinal": true,
     "refundKeyDerivationPath": "m/44'/0'/0'/0/0",
-    "lastChecked": 1744043940343
+    "lastChecked": 1744094580688
   },
   {
     "id": "0d094fb0-6eb3-459d-855b-cac0da5d6370",
@@ -67,7 +67,7 @@
     "timeDurationHours": 72,
     "isOrdinal": true,
     "refundKeyDerivationPath": "m/44'/0'/0'/0/0",
-    "lastChecked": 1744043941095
+    "lastChecked": 1744094581519
   },
   {
     "id": "209f1b08-b337-4dcb-bbbd-0106078da96e",
@@ -83,7 +83,7 @@
     "timeDurationHours": 72,
     "isOrdinal": true,
     "refundKeyDerivationPath": "m/44'/0'/0'/0/0",
-    "lastChecked": 1744043941719
+    "lastChecked": 1744094581917
   },
   {
     "id": "0b83d76d-d4fe-442e-86db-3a2dbf60b587",
@@ -99,7 +99,7 @@
     "timeDurationHours": 72,
     "isOrdinal": true,
     "refundKeyDerivationPath": "m/44'/0'/0'/0/0",
-    "lastChecked": 1744043942125
+    "lastChecked": 1744094582318
   },
   {
     "id": "92d44d75-16e0-4bd9-b4ad-206bf475c798",
@@ -115,7 +115,7 @@
     "timeDurationHours": 72,
     "isOrdinal": true,
     "refundKeyDerivationPath": "m/44'/0'/0'/0/0",
-    "lastChecked": 1744043942534
+    "lastChecked": 1744094582713
   },
   {
     "id": "219da0f3-6573-4809-b2d0-63e59612cdad",
@@ -132,6 +132,26 @@
     "isOrdinal": true,
     "refundKeyDerivationPath": "m/44'/0'/0'/0/0",
     "lastChecked": 1744038962881,
+    "retryCount": 5,
+    "error": {
+      "message": "Failed to mint NFT after multiple attempts"
+    }
+  },
+  {
+    "id": "56be4792-4d9f-4cf2-8df2-14081a9dd6a2",
+    "timestamp": 1744093487817,
+    "btcAddress": "bc1pq6w59c0fms98dmmp55d608c95pplzwscr39dyc23pwwst3hul4aqsjdlpf",
+    "status": "failed",
+    "userEvmAddress": "0x4fC7C37B80AEf9990Fd2d0f161b97afd2e3185E7",
+    "htlcAddress": "bc1qav7kf5lyurw4yn3nlueds9585p8qupuxy9gf7a39vqcru8yfglmqld49sr",
+    "preimage": "",
+    "contractHash": "0bdade2b6ed19134f293d6eb8641493b6b5d6403668e2d3519fc534cc34cfd11",
+    "witnessScript": "63a8200bdade2b6ed19134f293d6eb8641493b6b5d6403668e2d3519fc534cc34cfd118876a920069d42e1e9dc0a76ef61a51ba79f05a043f13a181c4ad261510b9d05c6fcfd7a6704afb5f867b17576a9142bd753ddba95c19f5088335c24bbbedd89d2350e6888ac",
+    "timelock": 1744352687,
+    "timeDurationHours": 72,
+    "isOrdinal": true,
+    "refundKeyDerivationPath": "m/44'/0'/0'/0/0",
+    "lastChecked": 1744094043009,
     "retryCount": 5,
     "error": {
       "message": "Failed to mint NFT after multiple attempts"

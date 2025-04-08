@@ -76,6 +76,12 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
   // If the NFT was sold and the current user is the new owner, consider it an unlisted NFT
   const isNewOwner = currentOwner && address && currentOwner.toLowerCase() === address.toLowerCase();
   
+  // Check if the current user is the owner of this NFT
+  // Since we don't have direct access to the owner field, we can infer ownership:
+  // - If the user is the seller of a listed NFT
+  // - If the NFT is not listed and appears in the user's wallet (implied by being rendered in portfolio view when not listed)
+  const isOwner = isListedByMe || (!nft.isListed && !showAll);
+  
   // Determine if this card should be shown in the current view
   // On portfolio page (showAll=false), show:
   // - User's unlisted NFTs
@@ -84,8 +90,9 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
   // On explore page (showAll=true), show all NFTs except those sold via accepted bids
   const shouldShow = (showAll && !isSold) || 
                     (!showAll && (
-                      (!nft.isListed || isNewOwner) || 
-                      (isListedByMe && !isSold)
+                      (!nft.isListed && isOwner) || 
+                      (isListedByMe && !isSold) ||
+                      isNewOwner
                     ));
   
   if (!shouldShow) return null;
@@ -106,9 +113,12 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
     } else if (nft.isListed && !isSold) {
       // For other's listings, go to buy page
       router.push(`/nft/${nft.tokenId}?action=buy`);
-    } else {
-      // For unlisted NFTs, go to list page
+    } else if (!nft.isListed && isOwner) {
+      // Only allow listing if the user owns the NFT
       router.push(`/nft/${nft.tokenId}?action=list`);
+    } else {
+      // For non-owners viewing unlisted NFTs, just view the details
+      router.push(`/nft/${nft.tokenId}`);
     }
   };
 
@@ -188,7 +198,9 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
                   Seller: {nft.seller ? (isListedByMe ? 'You' : truncateAddress(nft.seller)) : 'Unknown'}
                 </p>
               ) : (
-                <p className="text-gray-400 text-xs">Not Listed</p>
+                <p className="text-gray-400 text-xs">
+                  {isOwner ? 'Not Listed' : 'Available'}
+                </p>
               )}
             </div>
             
@@ -198,8 +210,9 @@ const NFTCard: FC<NFTCardProps> = ({ nft, showAll = false }) => {
               onClick={handleButtonClick}
             >
               {isSold ? 'View' : 
-                (nft?.isListed && isListedByMe) ? 'Manage' : 
-                nft?.isListed ? 'Buy' : 'List for Sale'}
+                (nft.isListed && isListedByMe) ? 'Manage' : 
+                nft.isListed ? 'Buy' : 
+                isOwner ? 'List for Sale' : 'View'}
               <FiArrowRight className="ml-1" />
             </button>
           </div>
