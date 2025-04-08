@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  console.log('Received request:', req.body);
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

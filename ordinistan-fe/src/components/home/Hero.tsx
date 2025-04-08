@@ -1,10 +1,12 @@
 import React from "react";
+import { useRouter } from "next/router";
 // import HeaderContent from "./HeaderContent";
 
 const backgroundAnimation: string = "/animations/background-animation.gif";
 const ringAnimation: string = "/animations/ring-animation.gif";
 
 const Hero: React.FC = () => {
+  const router = useRouter();
   return (
     <div className="relative w-full h-screen overflow-hidden flex flex-col items-center text-white md:min-h-[600px]">
       {/* Background Animation */}
@@ -40,13 +42,13 @@ const Hero: React.FC = () => {
         </p>
         <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
           {/* Start Bridging Button with Gradient Border */}
-          <button className="relative rounded-full px-6 py-2 text-lg text-black w-fit group">
+          <button className="relative rounded-full px-6 py-2 text-lg text-black w-fit group" onClick={() => router.push('/bridge')}>
             <span className="absolute inset-0 rounded-full bg-gradient-to-r from-[#FFB501] to-[#FF8614] p-[2px]"></span>
             <span className="relative flex items-center justify-center w-full h-full rounded-full transition-all">
               Start Bridging
             </span>
           </button>
-          <button className="w-fit rounded-full border-2 border-gray-600/50 px-6 py-2 text-lg text-white hover:bg-gray-100 hover:text-black transition-all duration-300">
+          <button className="w-fit rounded-full border-2 border-gray-600/50 px-6 py-2 text-lg text-white hover:bg-gray-100 hover:text-black transition-all duration-300" onClick={() => router.push('/explore')}>
             Explore Market
           </button>
         </div>
