@@ -240,7 +240,7 @@ const Bridge: NextPage = () => {
             <div className="space-y-6">
               {/* From Address */}
               <div>
-                <label className="block text-sm font-medium text-core-dark mb-2">From Address</label>
+                <label className="block text-sm font-medium text-core-dark mb-2">From Address (BTC Address)</label>
                 <div className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50">
                   <p className="text-gray-900 font-mono text-sm break-all">
                     {ordinalsAddress || 'Connect xverse wallet to view address'}
@@ -343,7 +343,7 @@ const Bridge: NextPage = () => {
                             }}
                             className="px-4 py-2 bg-gray-200 rounded-md text-gray-800 text-sm hover:bg-gray-300"
                           >
-                            Retry Loading
+                            Refresh
                           </button>
                         </div>
                       </div>
