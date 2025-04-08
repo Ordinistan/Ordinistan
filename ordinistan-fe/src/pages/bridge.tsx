@@ -243,7 +243,7 @@ const Bridge: NextPage = () => {
                 <label className="block text-sm font-medium text-core-dark mb-2">From Address</label>
                 <div className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50">
                   <p className="text-gray-900 font-mono text-sm break-all">
-                    {ordinalsAddress || 'Connect wallet to view address'}
+                    {ordinalsAddress || 'Connect xverse wallet to view address'}
                   </p>
                 </div>
               </div>

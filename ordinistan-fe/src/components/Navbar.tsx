@@ -1,10 +1,13 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import BitcoinConnectButton from "./common/BitcoinConnectButton";
 
 const Navbar = () => {
+  const [prevScrollPos, setPrevScrollPos] = useState(0);
+  const [visible, setVisible] = useState(true);
+
   const navigation = [
     { name: "Home", href: "/" },
     { name: "Portfolio", href: "/portfolio" },
@@ -12,9 +15,29 @@ const Navbar = () => {
     { name: "Inscribe", href: "/inscribe" },
   ];
 
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollPos = window.scrollY;
+      
+      // Make navbar visible when scrolled to top
+      if (currentScrollPos === 0) {
+        setVisible(true);
+        setPrevScrollPos(currentScrollPos);
+        return;
+      }
+      
+      // Show when scrolling up, hide when scrolling down
+      setVisible(prevScrollPos > currentScrollPos || currentScrollPos < 10);
+      setPrevScrollPos(currentScrollPos);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [prevScrollPos]);
+
   return (
-    <nav className="fixed top-4 left-0 right-0 z-50 flex justify-center">
-      <div className="flex justify-between items-center px-3 md:px-6 py-3 w-full max-w-[1200px] mx-auto border-2 border-orange-500/20 rounded-2xl">
+    <nav className={`fixed top-4 left-0 right-0 z-50 flex justify-center transition-transform duration-300 ${visible ? 'translate-y-0' : '-translate-y-full'}`}>
+      <div className="flex justify-between items-center px-3 md:px-6 py-3 w-full max-w-[1200px] mx-auto bg-transparent border-2 border-orange-500/20 rounded-2xl backdrop-blur-sm">
         {/* Logo */}
         <div>
           <Link href="/">

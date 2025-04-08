@@ -141,12 +141,23 @@ const checkDirectFromContract = async (
   fetchOrderBids: (orderId: string) => Promise<void>
 ): Promise<NFT | null> => {
   try {
-    if (!window.ethereum) {
-      console.error("No ethereum provider found");
-      return null;
+    // Create provider - try with window.ethereum first, then fallback to RPC URL
+    let provider;
+    try {
+      if (window.ethereum) {
+        provider = new ethers.BrowserProvider(window.ethereum);
+        console.log("Using window.ethereum provider in checkDirectFromContract");
+      } else {
+        // Fallback to read-only provider
+        provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+        console.log("Using fallback RPC provider in checkDirectFromContract");
+      }
+    } catch (providerErr) {
+      console.error("Error creating provider in checkDirectFromContract:", providerErr);
+      // Fallback to read-only provider
+      provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+      console.log("Using fallback RPC after error in checkDirectFromContract");
     }
-
-    const provider = new ethers.BrowserProvider(window.ethereum);
     
     // Create contract instance for Bridge NFT
     const bridgeContract = new ethers.Contract(
@@ -338,8 +349,7 @@ const NFTDetailPage = () => {
   const [currentNFT, setCurrentNFT] = useState<NFT | null>(null);
   const [currentOrder, setCurrentOrder] = useState<MarketplaceOrder | null>(null);
   const [isOwner, setIsOwner] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(Math.floor(Math.random() * 100));
+
   
   // States for marketplace interactions
   const [isListing, setIsListing] = useState(false);
@@ -366,13 +376,28 @@ const NFTDetailPage = () => {
   const [showListingForm, setShowListingForm] = useState(false);
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true); // Add initial loading state
   const [error, setError] = useState<string | null>(null);
+  const [showError, setShowError] = useState(false); // Add separate state to control error display
   const [managingMode, setManagingMode] = useState(false);
   const [listingMode, setListingMode] = useState(false);
   const [buyingMode, setBuyingMode] = useState(false);
 
   // Add a state to track NFT sold status
   const [isSold, setIsSold] = useState(false);
+
+  // Add an effect to reset loading states when the ID changes
+  useEffect(() => {
+    if (id) {
+      // Reset all relevant states when ID changes
+      setInitialLoading(true);
+      setLoading(true);
+      setShowError(false);
+      setError(null);
+      
+      console.log(`ID changed to ${id}, resetting loading states`);
+    }
+  }, [id]);
 
   // Function to fetch bids for the current order
   const fetchBids = async (orderId: string) => {
@@ -685,32 +710,52 @@ const NFTDetailPage = () => {
   
   // Update the main effect's dependency array
   useEffect(() => {
-    if (!id || !address) return;
+    if (!id) return;  // Only check for ID, not address
     
     const currentId = getSafeId(id);
     
     let isMounted = true;
     
+    // Reset error display state on new ID
+    setShowError(false);
+    setInitialLoading(true);
+    setLoading(true);
+    
     const checkNfts = async () => {
       try {
-        if (!isConnected || !window.ethereum) {
-          if (isMounted) {
-            setError("Please connect your wallet to view NFT details");
-          setLoading(false);
-          }
-          return;
-        }
+        // Check if wallet is connected but don't exit immediately if not
+        // This makes it more compatible with Brave's privacy features
+        const walletAvailable = isConnected && window.ethereum;
 
         // First try to find the NFT in user's wallet NFTs (both listed and unlisted)
-        let nft = unlistedNFTs.find(n => n.tokenId === currentId);
-        
-        // If not found in unlisted, check listed NFTs
-        if (!nft) {
-          nft = listedNFTs.find(n => n.tokenId === currentId);
+        // Only try this if wallet is connected
+        let nft = null;
+        if (walletAvailable && address) {
+          nft = unlistedNFTs.find(n => n.tokenId === currentId);
+          
+          // If not found in unlisted, check listed NFTs
+          if (!nft) {
+            nft = listedNFTs.find(n => n.tokenId === currentId);
+          }
         }
         
-        // Create provider for contract interactions
-        const provider = new ethers.BrowserProvider(window.ethereum);
+        // Create provider for contract interactions if wallet is available
+        // Otherwise, we'll use a fallback read-only provider
+        let provider;
+        try {
+          if (window.ethereum) {
+            provider = new ethers.BrowserProvider(window.ethereum);
+          } else {
+            // Fallback to read-only provider for Brave or when wallet isn't connected
+            provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+            console.log("Using fallback RPC provider");
+          }
+        } catch (providerErr) {
+          console.error("Error creating provider:", providerErr);
+          // Fallback to read-only provider
+          provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+          console.log("Using fallback RPC after error");
+        }
         
         // If we found the NFT in the wallet
         if (nft && isMounted) {
@@ -903,10 +948,39 @@ const NFTDetailPage = () => {
         console.error("Error finding NFT:", err);
         if (isMounted) {
           setError("Error loading NFT details. Please try again.");
+          
+          // Try direct contract lookup one last time, even if there was an error
+          try {
+            console.log("Attempting direct contract lookup after error");
+            await checkDirectFromContract(
+              currentId, 
+              address, 
+              setCurrentNFT, 
+              setIsOwner, 
+              setCurrentOrder, 
+              setError, 
+              fetchBids
+            );
+          } catch (finalErr) {
+            console.error("Final attempt to load NFT failed:", finalErr);
+          }
+          
+          // Only show error after a delay if we still don't have an NFT
+          setTimeout(() => {
+            if (isMounted && !currentNFT) {
+              setShowError(true);
+            }
+          }, 3000);
         }
       } finally {
         if (isMounted) {
-        setLoading(false);
+          setLoading(false);
+          // After a short delay, set initialLoading to false
+          setTimeout(() => {
+            if (isMounted) {
+              setInitialLoading(false);
+            }
+          }, 500);
         }
       }
     };
@@ -1054,12 +1128,6 @@ const NFTDetailPage = () => {
     }
   };
 
-  // Handle UI interactions
-  const handleLike = () => {
-    setLiked(!liked);
-    setLikeCount(liked ? likeCount - 1 : likeCount + 1);
-    toast.success(liked ? "Removed from favorites" : "Added to favorites");
-  };
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -1637,8 +1705,9 @@ const NFTDetailPage = () => {
     }
   };
 
-  if (loading || nftsLoading || ordersLoading) {
-  return (
+  // Update the rendering logic
+  if (initialLoading || loading || nftsLoading || ordersLoading) {
+    return (
       <Layout>
         <div className="flex justify-center items-center h-96">
           <FaSpinner className="animate-spin text-4xl text-purple-600" />
@@ -1649,7 +1718,10 @@ const NFTDetailPage = () => {
   }
 
   // Early check for wallet connection before any error handling
-  if (!isConnected || !address) {
+  // Only require wallet connection for specific actions
+  const requiresWallet = managingMode || listingMode || buyingMode;
+  
+  if (requiresWallet && (!isConnected || !address)) {
     return (
       <Layout>
         <div className="flex flex-col justify-center items-center h-96 text-center p-4">
@@ -1664,12 +1736,13 @@ const NFTDetailPage = () => {
     );
   }
 
-  if (error || !currentNFT) {
+  // Only show error screen if we have an error AND showError is true AND we don't have an NFT
+  if (showError && error && !currentNFT) {
     return (
       <Layout>
         <div className="flex flex-col justify-center items-center h-96 text-center p-4">
           <h1 className="text-2xl font-bold text-red-500 mb-4">Error</h1>
-          <p className="text-gray-300">{error || "NFT not found"}</p>
+          <p className="text-gray-300">{error}</p>
           {error && error.includes("connect your wallet") ? (
             <p className="mt-2 text-gray-400">You need to connect your wallet to view NFT details. This allows us to verify ownership and display the correct information.</p>
           ) : null}
@@ -1678,6 +1751,18 @@ const NFTDetailPage = () => {
             onClick={() => (error && error.includes("connect your wallet") ? router.push("/") : router.push("/portfolio"))}>
             {error && error.includes("connect your wallet") ? "Return to Home" : "Return to Portfolio"}
           </button>
+        </div>
+      </Layout>
+    );
+  }
+
+  // If we have no NFT but also no error yet, keep showing loading
+  if (!currentNFT) {
+    return (
+      <Layout>
+        <div className="flex justify-center items-center h-96">
+          <FaSpinner className="animate-spin text-4xl text-purple-600" />
+          <span className="ml-3 text-xl">Loading NFT details...</span>
         </div>
       </Layout>
     );
@@ -1727,12 +1812,6 @@ const NFTDetailPage = () => {
             <div className="flex justify-between items-start mb-6">
               <h1 className="text-3xl font-bold text-white bg-gradient-to-r from-purple-400 to-purple-200 text-transparent bg-clip-text">{currentNFT.name || `Ordinal #${currentNFT.tokenId}`}</h1>
               <div className="flex space-x-3">
-                <button onClick={handleLike} className={`p-2 rounded-full ${liked ? "bg-red-500" : "bg-gray-700"} hover:bg-red-600 transition-colors shadow-md`} aria-label="Like NFT">
-                  <FaHeart className="text-white" />
-                </button>
-                <button onClick={handleShare} className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors shadow-md" aria-label="Share NFT">
-                  <FaShareAlt className="text-white" />
-                </button>
               </div>
             </div>
 
@@ -1805,7 +1884,15 @@ const NFTDetailPage = () => {
                                   step="0.01"
                                   min="0"
                                   value={listingPrice}
-                                  onChange={(e) => setListingPrice(e.target.value)}
+                                  onChange={(e) => {
+                                    // Validate to ensure max 17 digits before and after decimal point
+                                    const value = e.target.value;
+                                    // Allow up to 17 digits before and 17 digits after decimal point
+                                    const regex = /^\d{0,17}(\.\d{0,17})?$/;
+                                    if (value === '' || regex.test(value)) {
+                                      setListingPrice(value);
+                                    }
+                                  }}
                                   className="flex-1 py-2 px-3 bg-gray-800 text-white rounded-lg outline-none border border-gray-700 focus:border-purple-500 transition-colors"
                                   placeholder="Enter price in CORE"
                                   style={{
@@ -1861,7 +1948,15 @@ const NFTDetailPage = () => {
                                 step="0.01"
                                 min="0"
                                 value={offerPrice}
-                                onChange={(e) => setOfferPrice(e.target.value)}
+                                onChange={(e) => {
+                                  // Validate to ensure max 17 digits before and after decimal point
+                                  const value = e.target.value;
+                                  // Allow up to 17 digits before and 17 digits after decimal point
+                                  const regex = /^\d{0,17}(\.\d{0,17})?$/;
+                                  if (value === '' || regex.test(value)) {
+                                    setOfferPrice(value);
+                                  }
+                                }}
                                 className="flex-1 py-2 px-3 bg-gray-800 text-white rounded-lg outline-none border border-gray-700 focus:border-purple-500 transition-colors"
                                 placeholder="Enter your offer in CORE"
                                 style={{
